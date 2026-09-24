@@ -1,0 +1,19 @@
+# Your library and everything built from it
+content/
+*.db
+*.db-wal
+*.db-shm
+logs/
+config.json
+aobana.installed
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Installer build (release/build.py)
+release/vendor/
+release/build/
+release/dist/
+release/repo/

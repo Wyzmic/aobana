@@ -1,0 +1,3023 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta name="aobana-boot" content="{{ boot }}">
+  <script>
+    (function () {
+      var get = function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } };
+      var theme = get('theme');
+      if (theme === 'dark') theme = 'night';
+      if (['paper', 'haze', 'night', 'midnight'].indexOf(theme) < 0) {
+        theme = (window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches) ? 'paper' : 'night';
+      }
+      document.documentElement.setAttribute('data-theme', theme);
+      var lang = get('lang');
+      if (lang !== 'ja' && lang !== 'en') lang = /^ja\b/i.test(navigator.language || '') ? 'ja' : 'en';
+      document.documentElement.setAttribute('lang', lang);
+      if (get('furigana') === 'off') document.documentElement.classList.add('no-furigana');
+    })();
+  </script>
+  <meta name="darkreader" content="NO-DARKREADER-PLUGIN">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>露草</title>
+  <link rel="icon" type="image/svg+xml" href="/static/aobana.svg">
+  <style>
+    @font-face {
+      font-family: 'Aobana Sans';
+      src: url('/static/fonts/NotoSansJP.ttf') format('truetype');
+      font-weight: 100 900;
+      font-display: swap;
+    }
+
+    :root, [data-theme="night"] {
+      color-scheme: dark;
+      --bg-body: #181a1b;
+      --bg-sidebar: #1e2023;
+      --bg-card: #202225;
+      --bg-hover: #2b2d31;
+      --bg-input: #1e2023;
+      --bg-btn: #232529;
+      --bg-inset: #1a1b1e;
+      --border-color: #2f3136;
+      --border-strong: #41444b;
+      --accent: #2b73dc;
+      --accent-soft: rgba(61, 139, 253, 0.15);
+      --accent-line: rgba(61, 139, 253, 0.4);
+      --accent-text: #6aa6ff;
+      --on-accent: #ffffff;
+      --text-main: #f1f1f1;
+      --text-title: #e0e6ed;
+      --text-muted: #a0b0c0;
+      --text-faint: #8a929e;
+      --text-fainter: #5c6370;
+      --text-blue: #b0d6ff;
+      --link: #9be2ff;
+      --hl-mark: #3d8bfd;
+      --hl-bold: #9be2ff;
+      --hl-tail: #7ab8e0;
+      --rt: #a0b0c0;
+      --rt-alpha: #a6c4f7;
+      --gold: #ffd966;
+      --gold-soft: rgba(255, 217, 102, 0.1);
+      --danger: #e06c75;
+      --ok: #7fc97f;
+      --shadow: rgba(0, 0, 0, 0.35);
+      --overlay: rgba(0, 0, 0, 0.7);
+      --scroll-thumb: #36393f;
+      --scroll-thumb-hover: #4f545c;
+    }
+    [data-theme="midnight"] {
+      color-scheme: dark;
+      --bg-body: #000000;
+      --bg-sidebar: #050505;
+      --bg-card: #080808;
+      --bg-hover: #151515;
+      --bg-input: #0a0a0a;
+      --bg-btn: #111111;
+      --bg-inset: #030303;
+      --border-color: #1a1a1a;
+      --border-strong: #2a2a2a;
+      --text-main: #e0e0e0;
+      --text-title: #d6dbe1;
+      --text-muted: #888888;
+      --text-faint: #7b7f85;
+      --text-fainter: #4b4f55;
+      --text-blue: #a0c0e0;
+      --scroll-thumb: #202020;
+      --scroll-thumb-hover: #333333;
+    }
+    [data-theme="paper"] {
+      color-scheme: light;
+      --bg-body: #f7f7f5;
+      --bg-sidebar: #ffffff;
+      --bg-card: #ffffff;
+      --bg-hover: #eef3fb;
+      --bg-input: #ffffff;
+      --bg-btn: #f2f4f7;
+      --bg-inset: #f5f7fa;
+      --border-color: #e2e5ea;
+      --border-strong: #cbd1da;
+      --accent: #2b72e7;
+      --accent-soft: rgba(43, 114, 231, 0.10);
+      --accent-line: rgba(43, 114, 231, 0.35);
+      --accent-text: #1f5fc4;
+      --on-accent: #ffffff;
+      --text-main: #1d2330;
+      --text-title: #262d3b;
+      --text-muted: #5b6576;
+      --text-faint: #646e7f;
+      --text-fainter: #8e96a3;
+      --text-blue: #1f5fc4;
+      --link: #1f5fc4;
+      --hl-mark: #2b72e7;
+      --hl-bold: #1554c0;
+      --hl-tail: #4c7fb8;
+      --rt: #6b7585;
+      --rt-alpha: #4a73b8;
+      --gold: #8f6400;
+      --gold-soft: rgba(196, 138, 0, 0.10);
+      --danger: #c9404b;
+      --ok: #2f8a3a;
+      --shadow: rgba(30, 40, 60, 0.08);
+      --overlay: rgba(20, 26, 36, 0.45);
+      --scroll-thumb: #cfd5de;
+      --scroll-thumb-hover: #b3bcc8;
+    }
+    [data-theme="haze"] {
+      color-scheme: light;
+      --bg-body: #e4eaf1;
+      --bg-sidebar: #edf1f6;
+      --bg-card: #f4f7fa;
+      --bg-hover: #dce5f0;
+      --bg-input: #f7f9fb;
+      --bg-btn: #e6ecf3;
+      --bg-inset: #e9eef4;
+      --border-color: #cfd8e3;
+      --border-strong: #b5c2d1;
+      --accent: #2567d4;
+      --accent-soft: rgba(37, 103, 212, 0.12);
+      --accent-line: rgba(37, 103, 212, 0.38);
+      --accent-text: #1c56b5;
+      --on-accent: #ffffff;
+      --text-main: #1b2433;
+      --text-title: #212b3c;
+      --text-muted: #4f5d70;
+      --text-faint: #58667a;
+      --text-fainter: #7f8b9c;
+      --text-blue: #1c56b5;
+      --link: #1c56b5;
+      --hl-mark: #2567d4;
+      --hl-bold: #124aa8;
+      --hl-tail: #41709f;
+      --rt: #5d6a7c;
+      --rt-alpha: #3f67a8;
+      --gold: #7a5600;
+      --gold-soft: rgba(168, 116, 0, 0.12);
+      --danger: #b93440;
+      --ok: #2a7a34;
+      --shadow: rgba(30, 45, 70, 0.10);
+      --overlay: rgba(20, 30, 45, 0.45);
+      --scroll-thumb: #b9c5d3;
+      --scroll-thumb-hover: #9eadc0;
+    }
+
+    html, body { min-height: 100%; }
+    html { scrollbar-gutter: stable; }
+    :root { --pad: 1rem; --bar-px: 0.9em; }
+    body {
+      font-family: 'Noto Sans JP', 'Aobana Sans', 'Noto Serif Hentaigana', 'BabelStone Han', 'BabelStone Han Extra', 'BabelStone Han PUA', 'I.Ming Seiji', 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic', Meiryo, sans-serif;
+      background: var(--bg-body);
+      color: var(--text-main);
+      margin: 0;
+      padding: var(--pad);
+      min-height: 100vh;
+      box-sizing: border-box;
+    }
+    input, button, select, textarea { font-family: inherit; }
+    a { color: var(--link); }
+    [hidden] { display: none !important; }
+    .muted { color: var(--text-muted); }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 1.2em;
+      background: var(--bg-sidebar);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 0.55em var(--bar-px);
+      margin-bottom: var(--pad);
+      box-shadow: 0 4px 12px var(--shadow);
+      transition: border-radius 0.2s, margin 0.2s, padding 0.2s, box-shadow 0.2s, border-color 0.2s;
+    }
+    body:has([data-tab-panel]:not([data-tab-panel="search"]):not([hidden])) .topbar {
+      position: sticky;
+      top: var(--pad);
+      z-index: 50;
+    }
+    body:has([data-tab-panel]:not([data-tab-panel="search"]):not([hidden])) .topbar.is-sticky {
+      top: 0;
+      margin-left: calc(-1 * var(--pad));
+      margin-right: calc(-1 * var(--pad));
+      border-radius: 0 0 12px 12px;
+      border-top-color: transparent;
+      padding-left: calc(var(--pad) + var(--bar-px));
+      padding-right: calc(var(--pad) + var(--bar-px));
+      box-shadow: 0 4px 18px var(--shadow);
+    }
+    .brand {
+      display: flex; align-items: center; gap: 0.55em;
+      height: 38px;
+      color: var(--text-title); text-decoration: none; flex-shrink: 0;
+      -webkit-user-drag: none; user-select: none; -webkit-user-select: none;
+    }
+    .brand img { width: 30px; height: 30px; border-radius: 8px; display: block; }
+    .brand-name { font-size: 1.15em; font-weight: 700; letter-spacing: 0.04em; white-space: nowrap; transform: translateY(-2px); }
+    .brand-name rt { font-size: 0.5em; letter-spacing: 0.1em; }
+    .nav-tabs { display: flex; gap: 0.25em; flex: 1; min-width: 0; }
+    .nav-tab {
+      display: inline-flex; align-items: center; gap: 0.45em;
+      color: var(--text-muted); text-decoration: none; white-space: nowrap;
+      padding: 7px 12px; border-radius: 8px; font-size: 0.93em; font-weight: 600;
+      border: 1px solid transparent;
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
+      -webkit-user-drag: none; user-select: none; -webkit-user-select: none;
+    }
+    .nav-tab svg { width: 16px; height: 16px; flex-shrink: 0; }
+    html[lang="en"] .nav-tab svg { transform: none; }
+    .nav-tab:hover { background: var(--bg-hover); color: var(--text-main); }
+    .nav-tab.active { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent-line); }
+    .topbar-right { display: flex; align-items: center; gap: 0.5em; flex-shrink: 0; }
+    .topbar-menu { display: none; }
+    .menu-btn {
+      display: none; align-items: center; justify-content: center; margin-left: auto;
+      width: 38px; height: 38px; padding: 0; border-radius: 8px; cursor: pointer;
+      background: transparent; color: var(--text-muted); border: 1.5px solid var(--border-color);
+    }
+    .menu-btn:hover, .topbar.open .menu-btn { color: var(--text-main); background: var(--bg-hover); }
+    .top-btn { width: auto; justify-content: flex-start; }
+    #shortcuts-btn {
+      width: 36px; height: 36px; padding: 0; justify-content: center; flex-shrink: 0;
+    }
+    #shortcuts-btn .dd-icon {
+      transform: none; margin: 0; display: inline-flex; align-items: center; justify-content: center;
+    }
+    html[lang="en"] #shortcuts-btn .dd-icon {
+      transform: none;
+    }
+
+    .dd { position: relative; }
+    .dd-btn {
+      display: inline-flex; align-items: center; justify-content: space-between; gap: 0.5em;
+      background: var(--bg-input); color: var(--text-main);
+      border: 1.5px solid var(--border-color); border-radius: 8px;
+      height: 36px; padding: 0 12px; font-size: 0.92em; cursor: pointer; white-space: nowrap;
+      transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+      user-select: none; -webkit-user-select: none; width: 100%; box-sizing: border-box;
+    }
+    .dd-btn:hover { border-color: var(--border-strong); }
+    .dd.open .dd-btn { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .dd-btn .dd-icon { display: inline-flex; color: var(--text-muted); transform: translateY(1px); }
+    html[lang="en"] .dd-btn .dd-icon { transform: translateY(2px); }
+    .dd-btn .dd-caret { width: 12px; height: 12px; fill: var(--text-muted); transition: transform 0.2s; flex-shrink: 0; }
+    .dd.open .dd-caret { transform: rotate(180deg); }
+    .dd-label { overflow: hidden; text-overflow: ellipsis; }
+    .dd-menu {
+      position: absolute; top: calc(100% + 6px); right: 0; min-width: 100%; z-index: 99;
+      background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 8px;
+      box-shadow: 0 8px 20px var(--shadow); overflow: hidden; display: none; box-sizing: border-box;
+    }
+    .dd.left .dd-menu { left: 0; right: auto; }
+    .dd.open .dd-menu { display: block; animation: slideDownFader 0.15s ease-out; }
+    .dd-item {
+      display: flex; align-items: center; gap: 0.6em;
+      padding: 7px 14px; font-size: 0.92em; cursor: pointer; white-space: nowrap; color: var(--text-main);
+      user-select: none; -webkit-user-select: none;
+    }
+    .dd-item:hover { background: var(--bg-hover); color: var(--link); }
+    .dd-item.selected { background: var(--accent-soft); color: var(--accent-text); }
+    .dd-ico { flex-shrink: 0; opacity: 0.75; transform: translateY(1px); }
+    .dd-label .dd-ico { margin-right: 0.45em; vertical-align: -2.5px; transform: none; }
+    html[lang="en"] .dd-ico { transform: translateY(2px); }
+    html[lang="en"] .dd-label .dd-ico { vertical-align: -3.5px; transform: none; }
+    .dd-item:hover .dd-ico, .dd-item.selected .dd-ico { opacity: 1; }
+    .swatch {
+      width: 16px; height: 16px; border-radius: 5px; flex-shrink: 0;
+      border: 1px solid var(--border-strong); position: relative; overflow: hidden;
+    }
+    .swatch::after { content: ''; position: absolute; right: 2px; bottom: 2px; width: 6px; height: 6px; border-radius: 50%; }
+    .swatch.paper { background: #f7f7f5; } .swatch.paper::after { background: #2b72e7; }
+    .swatch.haze { background: #e4eaf1; } .swatch.haze::after { background: #2567d4; }
+    .swatch.night { background: #202225; } .swatch.night::after { background: #3d8bfd; }
+    .swatch.midnight { background: #000; } .swatch.midnight::after { background: #3d8bfd; }
+
+    .flex-row {
+      display: flex; flex-direction: row; align-items: flex-start;
+      gap: var(--pad); width: 100%; flex-wrap: nowrap;
+    }
+    .sidebar {
+      width: 280px; min-width: 220px; max-width: 320px;
+      background: var(--bg-sidebar);
+      padding: 1.1em;
+      border-radius: 12px;
+      height: calc(100vh - 2em);
+      max-height: calc(100vh - 2em);
+      overflow-y: auto;
+      flex-shrink: 0;
+      box-sizing: border-box;
+      display: flex; flex-direction: column;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 4px 12px var(--shadow);
+      position: sticky;
+      top: 1em;
+      align-self: flex-start;
+      transition: height 0.15s cubic-bezier(0.25, 0.8, 0.25, 1), max-height 0.15s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+    .main-content { flex: 1 1 0%; min-width: 0; box-sizing: border-box; display: flex; flex-direction: column; }
+    .page { max-width: 920px; width: 100%; margin: 0 auto; }
+
+    .side-controls { display: flex; flex-direction: column; gap: 0.6em; margin-bottom: 0.35em; }
+    .seg {
+      display: flex; background: var(--bg-btn); border: 1px solid var(--border-color);
+      border-radius: 9px; padding: 3px; gap: 3px;
+    }
+    .seg-btn {
+      flex: 1 1 0; min-width: 0; height: 30px; padding: 0 6px;
+      border: none; border-radius: 6px; background: transparent; color: var(--text-muted);
+      font-size: 0.88em; font-weight: 700; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      transition: background 0.2s, color 0.2s;
+    }
+    .seg-btn:hover { color: var(--text-main); background: var(--bg-hover); }
+    .seg-btn.active { background: var(--accent); color: var(--on-accent); }
+    .side-row { display: flex; gap: 6px; align-items: center; }
+    .side-row .dd { flex: 1; min-width: 0; }
+    .sq-btn {
+      width: 34px; height: 34px; flex-shrink: 0; box-sizing: border-box;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--bg-btn); color: var(--text-muted);
+      border: 1.5px solid var(--border-color); border-radius: 8px; cursor: pointer;
+      font-size: 0.92em; font-weight: 700; padding: 0; position: relative;
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
+      user-select: none; -webkit-user-select: none;
+    }
+    .sq-btn:hover { background: var(--bg-hover); color: var(--text-main); border-color: var(--border-strong); }
+    .sq-btn.on { color: var(--accent-text); border-color: var(--accent-line); background: var(--accent-soft); }
+    .sq-btn.furi-btn.off::after {
+      content: ''; position: absolute; left: 6px; right: 6px; top: 50%; height: 2px;
+      background: currentColor; transform: rotate(-35deg); border-radius: 2px;
+    }
+    .folder-filter {
+      width: 100%; box-sizing: border-box; height: 34px;
+      background: var(--bg-input); color: var(--text-main);
+      border: 1.5px solid var(--border-color); border-radius: 8px; padding: 0 10px 0 32px; font-size: 0.9em; outline: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Ccircle cx='9' cy='9' r='5.5' fill='none' stroke='%238a94a3' stroke-width='1.8'/%3E%3Cpath d='M13 13l4 4' stroke='%238a94a3' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: 9px center; background-size: 15px;
+    }
+    .folder-filter:focus { border-color: var(--accent); }
+    .folder-list { list-style: none; padding: 0; margin: 0; }
+    .folder-list li { margin: 0.25em 0; }
+    .folder-link {
+      color: var(--text-muted); text-decoration: none;
+      display: flex; justify-content: space-between; align-items: center; gap: 8px;
+      padding: 6px 10px; border-radius: 6px; border: 1px solid transparent;
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
+      font-size: 0.93em; cursor: pointer; line-height: 1.2;
+      -webkit-user-drag: none;
+    }
+    .folder-link:hover { background: var(--bg-hover); color: var(--text-main); border-color: var(--border-color); }
+    .folder-link.selected { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent-line); }
+    .folder-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .count-badge {
+      background: var(--bg-hover); color: var(--text-muted);
+      border-radius: 12px; padding: 0 8px; font-size: 0.84em; font-weight: bold;
+      display: flex; align-items: center; height: 22px; min-width: 28px; justify-content: center;
+      flex-shrink: 0; line-height: 1;
+    }
+    .folder-link.selected .count-badge { background: var(--accent); color: var(--on-accent); }
+    .side-divider { height: 1px; background: var(--border-color); margin: 0.5em 0; }
+
+    .search-bar { margin-bottom: var(--pad); display: flex; align-items: center; row-gap: var(--pad); column-gap: 0.8em; flex-wrap: wrap; }
+    .search-options { display: flex; align-items: center; gap: 0.6em; margin-left: auto; }
+    .search-input-wrap {
+      display: flex; align-items: center; flex: 1; min-width: 250px;
+      position: relative; border-radius: 8px; transition: box-shadow 0.2s;
+    }
+    .search-input-wrap:focus-within { box-shadow: 0 0 0 3px var(--accent-soft); }
+    .search-input-wrap:focus-within .search-input,
+    .search-input-wrap:focus-within .search-btn-box { border-color: var(--accent); }
+    .search-input {
+      background: var(--bg-input); color: var(--text-main);
+      border: 1.5px solid var(--border-color); border-right: none;
+      border-radius: 8px 0 0 8px; padding: 10px 16px; width: 100%;
+      font-size: 1.05em; outline: none; height: 42px; box-sizing: border-box;
+    }
+    .search-input::placeholder { color: var(--text-fainter); }
+    .search-btn-box {
+      background: var(--bg-btn); border: 1.5px solid var(--border-color); border-left: none;
+      border-radius: 0 8px 8px 0; height: 42px; width: 48px;
+      display: flex; align-items: center; justify-content: center; box-sizing: border-box;
+    }
+    .search-btn {
+      background: none; border: none; cursor: pointer; padding: 0; margin: 0; outline: none;
+      display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;
+      color: var(--text-muted);
+    }
+    .search-btn svg { width: 19px; height: 19px; transition: transform 0.1s; }
+    .search-btn:hover { color: var(--link); }
+    .search-btn:active svg { transform: scale(0.9); }
+    .exact-chip {
+      display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px;
+      border: 1.5px solid var(--border-color); border-radius: 8px; background: var(--bg-input);
+      color: var(--text-muted); font-size: 0.92em; font-weight: 600; cursor: pointer; white-space: nowrap;
+      transition: background 0.2s, color 0.2s, border-color 0.2s; box-sizing: border-box;
+      user-select: none; -webkit-user-select: none;
+    }
+    .exact-chip input { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+    .exact-chip svg { width: 14px; height: 14px; }
+    .exact-chip:hover { border-color: var(--border-strong); color: var(--text-main); }
+    .exact-chip.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+    .exact-chip:focus-within { box-shadow: 0 0 0 3px var(--accent-soft); }
+    .sort-dd { width: 180px; }
+    .filter-note {
+      display: inline-flex; align-items: center; gap: 8px; margin-bottom: 1em;
+      background: var(--accent-soft); color: var(--accent-text); border: 1px solid var(--accent-line);
+      border-radius: 16px; padding: 4px 6px 4px 12px; font-size: 0.88em; max-width: 100%; box-sizing: border-box;
+    }
+    .filter-note span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .filter-note button {
+      border: none; background: none; color: inherit; cursor: pointer; font-size: 1em; padding: 0 6px; line-height: 1;
+    }
+
+    #results { display: flex; flex-direction: column; gap: 0.8em; }
+    #load-more-sentinel { padding-bottom: 4em; }
+    .batch-wrapper {
+      width: 100%; display: flex; flex-direction: column; gap: 0.8em;
+      content-visibility: auto; contain-intrinsic-size: auto 5000px; overflow-clip-margin: 12px;
+    }
+    .card {
+      content-visibility: auto;
+      contain-intrinsic-size: auto 100px;
+      background: var(--bg-card); padding: 1.2em; border-radius: 10px;
+      border: 1px solid var(--border-color); box-shadow: 0 4px 6px var(--shadow);
+      transition: border-color 0.2s;
+    }
+    .card:hover { border-color: var(--border-strong); }
+    .card.keyboard-active, .episode-card.keyboard-active {
+      border-color: var(--accent) !important;
+      box-shadow: 0 0 0 2px var(--accent-line);
+    }
+    .card-meta {
+      font-size: 0.85em; color: var(--text-faint); margin-bottom: 6px;
+      display: flex; justify-content: space-between; align-items: flex-start;
+    }
+    .card-meta .src { padding-right: 16px; line-height: 1.4; }
+    .card-meta .chars { color: var(--text-faint); font-weight: 600; white-space: nowrap; line-height: 1.4; user-select: none; -webkit-user-select: none; }
+    .file-title { color: var(--text-title); display: flex; align-items: flex-start; line-height: 1.6em; }
+    .main-sentence { flex: 1; min-width: 0; padding-right: 0.5em; }
+
+    .episode-card { padding: 0; overflow: hidden; }
+    .episode-header {
+      padding: 1.1em 1.2em; background: var(--bg-card); cursor: pointer;
+      display: flex; justify-content: space-between; align-items: center; transition: background 0.2s;
+    }
+    .episode-header:hover { background: var(--bg-hover); }
+    .episode-title { font-weight: bold; color: var(--text-title); padding-right: 16px; }
+    .episode-toggle-icon { color: var(--text-muted); font-size: 0.8em; transition: transform 0.2s; user-select: none; -webkit-user-select: none; }
+    .episode-card.collapsed .episode-toggle-icon { transform: rotate(-90deg); }
+    .episode-card.collapsed .episode-content { display: none; }
+    .episode-line {
+      display: flex; align-items: center; padding: 4px 10px;
+      border-top: 1px solid var(--border-color); transition: background 0.2s;
+    }
+    .episode-line:hover { background: var(--bg-hover); }
+    .episode-line .main-sentence { line-height: 1.4em; font-size: 0.98em; }
+    .episode-line .actions-box { opacity: 0.5; transition: opacity 0.2s; }
+    .episode-line:hover .actions-box, .episode-line .actions-box:focus-within { opacity: 1; }
+
+    mark { background: none; color: var(--hl-mark); font-weight: bold; padding: 0; }
+    b { color: var(--hl-bold); font-weight: bold; }
+    .hl-tail, .hl-tail-p { color: var(--hl-tail); font-weight: normal; }
+    ruby { font-size: 1em; ruby-position: over; }
+    rt { font-size: 0.7em; color: var(--rt); user-select: none; line-height: 1; font-weight: normal; }
+    ruby.alpha { margin: 0 0.1em; }
+    ruby.alpha rt { color: var(--rt-alpha); font-size: 0.8em; }
+    .no-furigana .main-sentence rt, .no-furigana .context rt { display: none; }
+
+    .context {
+      color: var(--text-muted); margin-top: 0.8em; font-size: 0.9em; line-height: 1.5em;
+      display: none; border-radius: 8px; background: var(--bg-inset);
+      padding: 1em 1.2em; border: 1px solid var(--border-color);
+    }
+    .spacer { height: 0.5em; }
+    .actions-box { display: flex; gap: 8px; flex-shrink: 0; align-items: center; }
+    .icon-btn {
+      background: var(--bg-hover); color: var(--link);
+      border: 1px solid var(--border-color);
+      font-family: 'Noto Sans JP', 'Aobana Sans', sans-serif;
+      cursor: pointer; padding: 0; width: 32px; height: 32px; font-size: 1.1em; border-radius: 50%;
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
+      display: flex; align-items: center; justify-content: center;
+      user-select: none; -webkit-user-select: none;
+    }
+    .icon-btn:hover { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+    .icon-btn.star-active { color: var(--gold); border-color: var(--gold); background: var(--gold-soft); }
+    .icon-btn span { transform: translateY(-1px); line-height: 1; }
+    .status-line { text-align: center; color: var(--text-faint); font-size: 0.85em; user-select: none; -webkit-user-select: none; }
+    .error-text { color: var(--danger); }
+
+    .spinner {
+      border: 3px solid var(--accent-soft); border-top: 3px solid var(--accent);
+      border-radius: 50%; width: 32px; height: 32px;
+      animation: spin 0.8s linear infinite; margin: 0 auto 15px auto;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    #main-loading {
+      text-align: center; color: var(--text-blue); padding: 4em;
+      display: none; flex-direction: column; align-items: center;
+      font-size: 0.9em; letter-spacing: 1px; user-select: none; -webkit-user-select: none;
+    }
+    .panel {
+      background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 12px;
+      padding: 1.4em 1.6em; box-shadow: 0 4px 12px var(--shadow);
+    }
+    #empty-state {
+      text-align: center; color: var(--text-muted); padding: 3em; display: none; font-size: 0.95em;
+      background: var(--bg-sidebar); border-radius: 10px; border: 1px solid var(--border-color);
+      user-select: none; -webkit-user-select: none;
+    }
+    #history-state { padding: 0.5em 0; display: none; }
+    .history-label { color: var(--text-muted); margin-bottom: 1em; user-select: none; -webkit-user-select: none; }
+    .history-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .history-chip {
+      background: var(--bg-btn); color: var(--link); padding: 6px 12px; border-radius: 16px;
+      text-decoration: none; border: 1px solid var(--border-color); font-size: 0.9em;
+      user-select: none; -webkit-user-select: none; -webkit-user-drag: none;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .history-chip:hover { background: var(--bg-hover); border-color: var(--border-strong); }
+    .cta { text-align: center; padding: 2.6em 1.6em; }
+    .cta img { width: 64px; height: 64px; border-radius: 16px; margin-bottom: 0.8em; }
+    .cta h2 { margin: 0 0 0.5em; color: var(--text-title); font-size: 1.25em; }
+    .cta p { color: var(--text-muted); margin: 0 auto 1.3em; max-width: 34em; line-height: 1.7; }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.45em;
+      height: 36px; padding: 0 16px; border-radius: 8px; font-size: 0.92em; font-weight: 600;
+      border: 1.5px solid var(--border-color); background: var(--bg-btn); color: var(--text-main);
+      cursor: pointer; text-decoration: none; white-space: nowrap; box-sizing: border-box;
+      transition: background 0.2s, border-color 0.2s, color 0.2s;
+    }
+    .btn:hover { background: var(--bg-hover); border-color: var(--border-strong); }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+    .btn.primary:hover { filter: brightness(1.08); }
+    .btn:disabled { opacity: 0.55; cursor: default; filter: none; }
+    .btn svg { width: 16px; height: 16px; }
+
+    .media-toolbar { display: flex; gap: var(--pad); align-items: center; flex-wrap: wrap; margin-bottom: var(--pad); }
+    .media-toolbar .seg { width: 300px; max-width: 100%; }
+    .media-toolbar .folder-filter { flex: 1; min-width: 200px; width: auto; height: 38px; }
+    .media-summary { color: var(--text-muted); font-size: 0.9em; margin: 0 0 var(--pad) 0.2em; }
+    .media-list { background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; }
+    .media-row {
+      display: flex; align-items: center; gap: 0.9em; padding: 0.75em 1.1em;
+      border-top: 1px solid var(--border-color); text-decoration: none; color: var(--text-main);
+      transition: background 0.15s; -webkit-user-drag: none;
+    }
+    .media-row:first-child { border-top: none; }
+    .media-row:hover { background: var(--bg-hover); }
+    .media-kind {
+      font-size: 0.72em; font-weight: 700; padding: 3px 7px; border-radius: 6px; flex-shrink: 0;
+      background: var(--bg-btn); color: var(--text-muted); border: 1px solid var(--border-color); white-space: nowrap;
+    }
+    .media-kind.epub { color: var(--gold); }
+    .media-kind.subs { color: var(--accent-text); }
+    .media-names { flex: 1; min-width: 0; }
+    .media-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-title); }
+    .media-row:has(.media-kind.subs) .media-name,
+    .media-row .media-kind.subs + .media-names .media-name {
+      transform: translateY(-2px);
+    }
+    .media-author { font-size: 0.82em; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .media-stats { display: flex; gap: 6px; flex-shrink: 0; }
+    .stat-pill {
+      font-size: 0.8em; font-weight: 700; color: var(--text-muted); background: var(--bg-hover);
+      border-radius: 10px; padding: 3px 9px; white-space: nowrap;
+    }
+    .media-detail-head { margin-bottom: var(--pad); }
+    .media-detail-head h1 { font-size: 1.4em; margin: 0.4em 0 0.2em; color: var(--text-title); word-break: break-word; }
+    .media-detail-head .media-stats { margin-top: 0.5em; flex-wrap: wrap; }
+    #saved-head {
+      background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 12px;
+      padding: 1.1em 1.4em; box-shadow: 0 4px 12px var(--shadow); margin-bottom: var(--pad);
+    }
+    #saved-head h1 { font-size: 1.45em; margin: 0 0 0.25em; }
+    .back-link { color: var(--text-muted); text-decoration: none; font-size: 0.9em; display: inline-flex; gap: 0.4em; align-items: center; }
+    .back-link:hover { color: var(--accent-text); }
+
+    .doc h1 { font-size: 1.45em; margin: 0 0 0.3em; color: var(--text-title); }
+    .doc h2 { font-size: 1.1em; margin: 1.6em 0 0.6em; color: var(--text-blue); }
+    .doc h3 { font-size: 1em; margin: 1.1em 0 0.4em; color: var(--text-title); }
+    .doc p, .doc li { line-height: 1.75; color: var(--text-main); }
+    .doc .lead { color: var(--text-muted); margin-top: 0; }
+    .doc ul, .doc ol { padding-left: 1.4em; }
+    .doc code, .kbd-key, .path {
+      font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 0.88em;
+      background: var(--bg-btn); border: 1px solid var(--border-color); border-radius: 5px; padding: 1px 6px;
+    }
+    .doc pre {
+      background: var(--bg-inset); border: 1px solid var(--border-color); border-radius: 8px;
+      padding: 0.9em 1.1em; overflow-x: auto; line-height: 1.6; font-size: 0.88em;
+      font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+    }
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.8em; margin: 1.2em 0 0.4em; }
+    .step { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 0.9em 1em; }
+    .step-n {
+      width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--on-accent);
+      display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85em; margin-bottom: 0.4em;
+    }
+    .step-t { font-weight: 700; color: var(--text-title); margin-bottom: 0.2em; }
+    .step-d { color: var(--text-muted); font-size: 0.88em; line-height: 1.6; }
+    .lib-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1em; margin: 1.2em 0; }
+    .lib-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 1em 1.1em; min-width: 0; }
+    .lib-card h3 { margin: 0 0 0.5em; font-size: 1em; color: var(--text-title); display: flex; align-items: center; gap: 0.5em; }
+    .lib-card .path { display: block; word-break: break-all; padding: 6px 8px; margin-bottom: 0.7em; line-height: 1.5; }
+    .lib-card .facts { font-size: 0.87em; color: var(--text-muted); line-height: 1.7; margin-bottom: 0.8em; }
+    .lib-card .facts .warn { color: var(--gold); }
+    .lib-card .btns { display: flex; gap: 0.5em; flex-wrap: wrap; }
+    .lib-card input[type=text] {
+      width: 100%; box-sizing: border-box; height: 34px; margin-bottom: 0.6em;
+      background: var(--bg-input); color: var(--text-main); border: 1.5px solid var(--border-color);
+      border-radius: 8px; padding: 0 10px; font-size: 0.88em; outline: none;
+    }
+    .lib-card input[type=text]:focus { border-color: var(--accent); }
+    .lib-card input[type=number] {
+      width: 7em; box-sizing: border-box; height: 34px;
+      background: var(--bg-input); color: var(--text-main); border: 1.5px solid var(--border-color);
+      border-radius: 8px; padding: 0 10px; font-size: 0.88em; outline: none;
+    }
+    .lib-card input[type=number]:focus { border-color: var(--accent); }
+    .progress { height: 10px; background: var(--bg-btn); border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden; margin: 0.8em 0 0.4em; }
+    .progress > div { height: 100%; background: var(--accent); width: 0; transition: width 0.3s; }
+    .progress-text { font-size: 0.86em; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .summary-table { border-collapse: collapse; width: 100%; font-size: 0.9em; margin: 0.8em 0; }
+    .summary-table th, .summary-table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border-color); }
+    .summary-table th { color: var(--text-muted); font-weight: 600; }
+    .notice { border-radius: 8px; padding: 0.7em 1em; margin: 0.6em 0; font-size: 0.9em; line-height: 1.6; border: 1px solid var(--border-color); background: var(--bg-card); }
+    .notice.warn { border-color: var(--gold); }
+    .notice.err { border-color: var(--danger); }
+    .notice.ok { border-color: var(--ok); }
+    .notice ul { margin: 0.3em 0 0; padding-left: 1.3em; max-height: 12em; overflow: auto; }
+    details.log summary { cursor: pointer; color: var(--text-muted); font-size: 0.88em; margin-top: 0.8em; }
+    details.log pre { max-height: 18em; overflow: auto; font-size: 0.8em; }
+
+    body, .main-content { scrollbar-color: var(--scroll-thumb) var(--bg-body); }
+    .sidebar, .context { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+    ::-webkit-scrollbar { width: 14px; height: 14px; background: var(--bg-body); }
+    .sidebar::-webkit-scrollbar, .context::-webkit-scrollbar { width: 10px; height: 10px; background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 8px; border: 3px solid var(--bg-body); min-height: 60px; }
+    .sidebar::-webkit-scrollbar-thumb { border: 2px solid var(--bg-sidebar); min-height: 40px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb-hover); }
+    ::-webkit-scrollbar-corner { background: var(--bg-body); }
+
+    .sidebar-tooltip {
+      position: fixed; z-index: 9999; background: var(--bg-card); color: var(--text-main);
+      border: 1px solid var(--border-color); padding: 6px 12px; border-radius: 8px; font-size: 0.88em;
+      line-height: 1.4; pointer-events: none; box-shadow: 0 8px 24px var(--shadow);
+      max-width: 360px; word-break: break-word; white-space: normal; display: none; opacity: 0;
+      transition: opacity 0.12s ease-out;
+    }
+    .sidebar-tooltip.visible { opacity: 1; }
+    .modal-overlay {
+      position: fixed; inset: 0; background: var(--overlay); display: none;
+      align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px);
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-card {
+      background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px;
+      max-width: 460px; width: 90%; padding: 1.4em; box-shadow: 0 16px 36px var(--shadow);
+      box-sizing: border-box; animation: slideDownFader 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+      max-height: 90vh; overflow: auto;
+    }
+    .modal-card.wide { max-width: 560px; }
+    .modal-header {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 1em;
+      border-bottom: 1px solid var(--border-color); padding-bottom: 0.6em;
+    }
+    .modal-title { font-size: 1.05em; font-weight: bold; color: var(--text-blue); margin: 0; }
+    .modal-close {
+      background: none; border: none; color: var(--text-muted); font-size: 1.2em; cursor: pointer;
+      padding: 2px 8px; border-radius: 4px; line-height: 1;
+    }
+    .modal-close:hover { color: var(--text-main); background: var(--bg-hover); }
+    .shortcut-row {
+      display: flex; justify-content: space-between; align-items: center; gap: 1em;
+      padding: 7px 0; font-size: 0.9em; border-bottom: 1px solid var(--border-color);
+    }
+    .shortcut-row:last-child { border-bottom: none; }
+    .shortcut-keys { display: flex; gap: 4px; align-items: center; flex-shrink: 0; color: var(--text-muted); }
+    .kbd-key { color: var(--link); font-weight: bold; }
+    .welcome { text-align: center; }
+    .welcome img { width: 72px; height: 72px; border-radius: 18px; margin: 0.4em 0 0.6em; }
+    .welcome h2 { margin: 0 0 0.5em; color: var(--text-title); }
+    .welcome p { color: var(--text-muted); line-height: 1.75; margin: 0 0 1em; }
+    .welcome ol { text-align: left; line-height: 1.8; margin: 0 0 1.2em; padding-left: 1.4em; }
+    .welcome .btns { display: flex; gap: 0.6em; justify-content: center; flex-wrap: wrap; }
+
+    @keyframes slideDownFader { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes slideUpFader { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-8px); } }
+    .context.anim-open { animation: slideDownFader 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; }
+    .context.anim-close { animation: slideUpFader 0.15s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; }
+
+    body, .topbar, .sidebar, .card, .panel, .search-input, .search-btn-box, .dd-btn, .dd-menu,
+    .context, .icon-btn, .count-badge, .folder-link, #empty-state, .history-chip, .seg, .seg-btn,
+    .sq-btn, .exact-chip, .nav-tab, .media-list, .media-row, .lib-card, .step, .btn {
+      transition: background-color 0.25s ease, background 0.25s ease, color 0.25s ease, border-color 0.25s ease !important;
+    }
+
+    @media (max-width: 900px) {
+      .sidebar { min-width: 190px; width: 230px; padding: 0.9em; }
+      .search-input-wrap { flex-basis: 100%; min-width: 0; }
+      .search-options { margin-left: 0; }
+      .lib-grid { grid-template-columns: 1fr; }
+    }
+    .topbar.c-lang #lang-dd .dd-btn { width: 36px; padding: 0; justify-content: center; }
+    .topbar.c-lang #lang-dd .dd-label,
+    .topbar.c-lang #lang-dd .dd-caret { display: none; }
+    .topbar.c-lang #lang-dd .dd-icon { transform: none; margin: 0; }
+    html[lang="en"] .topbar.c-lang #lang-dd .dd-icon { transform: none; }
+
+    .topbar.c-theme #theme-dd .dd-btn { width: 36px; padding: 0; justify-content: center; }
+    .topbar.c-theme #theme-dd .dd-label,
+    .topbar.c-theme #theme-dd .dd-caret { display: none; }
+    .topbar.c-theme #theme-dd .dd-icon { transform: none; margin: 0; }
+    html[lang="en"] .topbar.c-theme #theme-dd .dd-icon { transform: none; }
+
+    .topbar.c-guide .nav-tab[data-tab="guide"] { padding: 7px 10px; gap: 0; }
+    .topbar.c-guide .nav-tab[data-tab="guide"] span { display: none; }
+
+    .topbar.c-library .nav-tab[data-tab="library"] { padding: 7px 10px; gap: 0; }
+    .topbar.c-library .nav-tab[data-tab="library"] span { display: none; }
+
+    .topbar.c-media .nav-tab[data-tab="media"] { padding: 7px 10px; gap: 0; }
+    .topbar.c-media .nav-tab[data-tab="media"] span { display: none; }
+
+    .topbar.c-saved .nav-tab[data-tab="saved"] { padding: 7px 10px; gap: 0; }
+    .topbar.c-saved .nav-tab[data-tab="saved"] span { display: none; }
+
+    .topbar.c-search .nav-tab[data-tab="search"] { padding: 7px 10px; gap: 0; }
+    .topbar.c-search .nav-tab[data-tab="search"] span { display: none; }
+
+    .topbar.compact { flex-wrap: wrap; row-gap: 0; }
+    .topbar.compact .menu-btn { display: inline-flex; }
+    .topbar.compact > .topbar-right:not(.is-empty) + .menu-btn { font-size: inherit; margin-left: -0.7em; }
+    .topbar.compact.open .topbar-menu {
+      display: flex; flex-basis: 100%; flex-direction: column; gap: 0.7em;
+      margin-top: 0.55em; padding-top: 0.7em; border-top: 1px solid var(--border-color);
+      animation: slideDownFader 0.15s ease-out;
+    }
+    .menu-tabs { display: flex; flex-direction: column; gap: 2px; }
+    .menu-tabs:empty { display: none; }
+    .topbar-right.is-empty { display: none; }
+    .topbar .topbar-menu .nav-tab[data-tab] { padding: 9px 12px; gap: 7px; }
+    .topbar .topbar-menu .nav-tab[data-tab] span { display: inline; }
+    .topbar-menu .dd-btn { gap: 7px; }
+    .topbar-menu .topbar-right { flex-wrap: wrap; }
+    .topbar-menu .topbar-right .dd { flex: 1; }
+    .topbar-menu .top-btn { flex: 1 1 100%; }
+    .topbar-menu .topbar-right .dd-label { flex: 1; text-align: left; display: inline; }
+    .topbar-menu .topbar-right .dd-caret { display: inline-block; }
+    .topbar-menu .dd-menu { left: 0; right: auto; }
+    @media (max-width: 720px) {
+      :root { --pad: 0.8rem; --bar-px: 0.7em; }
+      .topbar {
+        position: sticky;
+        top: var(--pad);
+        z-index: 50;
+      }
+      .topbar.is-sticky {
+        top: 0;
+        margin-left: calc(-1 * var(--pad));
+        margin-right: calc(-1 * var(--pad));
+        border-radius: 0 0 12px 12px;
+        border-top-color: transparent;
+        padding-left: calc(var(--pad) + var(--bar-px));
+        padding-right: calc(var(--pad) + var(--bar-px));
+        box-shadow: 0 4px 18px var(--shadow);
+      }
+      .flex-row { flex-direction: column; }
+      .sidebar { width: 100%; max-width: none; min-width: 0; height: 38vh; position: static; top: auto; align-self: auto; }
+      .main-content { width: 100%; }
+      .search-options { width: 100%; }
+      .search-options .sort-dd { flex: 1; }
+      .steps { grid-template-columns: 1fr; }
+      .panel { padding: 1.1em 1.1em; }
+      .media-row { padding: 0.7em 0.8em; gap: 0.6em; }
+      .media-name, .media-author { white-space: normal; overflow-wrap: anywhere; }
+      .media-row { display: grid; grid-template-columns: auto 1fr; align-items: start; row-gap: 0.4em; }
+      .media-row .media-stats { grid-column: 2; }
+      .media-stats .stat-pill.secondary { display: none; }
+    }
+  </style>
+  <script>
+    const store = {
+      get(k, d = null) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } },
+      set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+      del(k) { try { localStorage.removeItem(k); } catch (e) {} },
+    };
+    (function () {
+      const boot = (document.querySelector('meta[name="aobana-boot"]') || {}).content;
+      if (boot && store.get('aobana_boot') !== boot) {
+        store.del('aobana_last_search');
+        store.del('aobana_last_media');
+        store.set('aobana_boot', boot);
+      }
+    })();
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+    }
+    function fmt(n) { return Number(n || 0).toLocaleString(LANG === 'ja' ? 'ja-JP' : 'en-US'); }
+
+    let LANG = document.documentElement.getAttribute('lang') === 'en' ? 'en' : 'ja';
+    const I18N = {
+      ja: {
+        app: '露草', tab_search: '検索', tab_media: 'メディア', tab_library: 'ライブラリ', tab_guide: 'ガイド',
+        tab_saved: 'お気に入り',
+        title_results: '「{q}」の例文',
+        lang_label: '日本語', theme_label: 'テーマ',
+        theme_paper: '紙', theme_haze: '霞', theme_night: '夜', theme_midnight: '深夜',
+        media_all: '両方', media_subs: '字幕', media_epub: '書籍',
+        furigana: 'ふりがな表示の切替 (F)', shortcuts: 'ショートカット (?)', sc_button: 'ショートカット',
+        sort_recommended: 'おすすめ', sort_chrono: '時系列順', sort_desc: '長い順', sort_asc: '短い順', sort_random: 'ランダム',
+        sort_title: '例文の並べ替え',
+        filter_folders: '作品を検索', all: '全て', menu: 'メニュー',
+        placeholder: '検索（例: 食べる, たべる, "食べて"）', exact: '完全一致', exact_title: '入力した語形のまま検索します',
+        recent: '最近の検索:', searching: 'データベースを検索中...', no_results: '一致する結果が見つかりませんでした。',
+        no_more: 'これ以上ありません', loading: '読み込み中...', error: 'エラーが発生しました', load_failed: '読み込みに失敗しました',
+        chars: '{n} 字', filtering: '絞り込み中: {f}', clear_filter: '絞り込みを解除',
+        empty_title: 'ライブラリが空です',
+        empty_body: '字幕（.srt）と電子書籍（.epub）をフォルダに入れて、ライブラリタブでインデックスを作成すると検索できるようになります。',
+        empty_btn: 'ライブラリを開く',
+        no_saved: 'お気に入りはまだありません。例文の ★ を押すと、ここに保存されます。',
+        saved_count: '{n} 件',
+        media_summary: '{shows} 作品 · {books} 冊', media_filter: 'タイトル・著者で絞り込み',
+        media_none: '該当する作品はありません。', back_media: 'メディア一覧',
+        stat_eps: '{n} 話', stat_lines: '{n} 行', stat_chaps: '{n} 章', stat_sents: '{n} 文',
+        kind_subs: '字幕', kind_epub: '書籍',
+        sc_title: 'ショートカット', sc_focus: '検索バーにフォーカス', sc_next: '次のカードを選択', sc_prev: '前のカードを選択',
+        sc_context: '文脈の展開 / 折りたたみ', sc_save: 'お気に入りに追加 / 解除', sc_furigana: 'ふりがなの表示 / 非表示',
+        sc_help: 'ヘルプの表示 / 切替', sc_close: 'モーダルを閉じる', close: '閉じる',
+        welcome_title: '露草へようこそ',
+        welcome_body: '露草（あおばな）は、あなた自身の字幕と電子書籍から日本語の例文を探す、オフラインの検索エンジンです。例文はふりがな付きで表示され、前後の文脈も確認できます。',
+        welcome_s1: '字幕（.srt）と電子書籍（.epub）を所定のフォルダに入れる — 場所は<b>ライブラリ</b>タブに表示されます',
+        welcome_s2: '<b>ライブラリ</b>タブで「インデックス作成」を押す',
+        welcome_s3: '<b>検索</b>タブで単語や表現を検索する',
+        welcome_more: '使い方の詳細は<b>ガイド</b>タブにあります。',
+        welcome_guide: 'ガイドを読む', welcome_start: 'はじめる', welcome_again: 'ようこそ画面をもう一度表示',
+        update_title: '新しいバージョンがあります',
+        update_body: 'お使いのバージョンは <b>{current}</b>、最新版は <b>{latest}</b> です。',
+        update_more: 'GitHub のリリースページからダウンロードできます。',
+        update_later: 'あとで', update_get: 'リリースページを開く',
+        lib_title: 'ライブラリ',
+        lib_lead: '露草は、下の2つのフォルダにあるファイルだけを読み込みます。ファイルを追加・削除・変更したら「インデックス作成」を押してください。変更のあったファイルだけが処理されるので、2回目以降は短時間で終わります。',
+        lib_step1_t: 'ファイルを入れる', lib_step1_d: '字幕は作品ごとのフォルダに、書籍はそのまま書籍フォルダへ。',
+        lib_step2_t: 'インデックス作成', lib_step2_d: '文を解析して検索用のデータベースを作ります。大きなライブラリでは数分かかります。',
+        lib_step3_t: '検索する', lib_step3_d: '完了したら検索タブへ。',
+        lib_subs: '字幕フォルダ', lib_books: '書籍フォルダ',
+        lib_open: 'フォルダを開く', lib_change: '変更', lib_save: '保存', lib_cancel: 'キャンセル',
+        lib_change_hint: '既存のフォルダの場所を貼り付けてください',
+        lib_disk_subs: 'フォルダ内: .srt ファイル {n} 件', lib_disk_books: 'フォルダ内: .epub ファイル {n} 件',
+        lib_loose: '作品フォルダに入っていない .srt が {n} 件あります（読み込まれません）',
+        lib_other: '対象外のファイル {n} 件（.srt / .epub 以外は無視されます）',
+        lib_missing: 'このフォルダは見つかりません。',
+        lib_indexed_subs: 'インデックス済み: {files} ファイル · {rows} 行',
+        lib_indexed_books: 'インデックス済み: {files} 冊 · {rows} 文',
+        lib_run: 'インデックス作成', lib_running: '作成中...',
+        lib_stage_subs: '字幕', lib_stage_epub: '書籍',
+        lib_done: 'インデックスの作成が完了しました。', lib_done_search: '検索をはじめる',
+        lib_col_stage: '', lib_col_new: '追加・更新', lib_col_same: '変更なし', lib_col_removed: '削除',
+        lib_skipped_loose: '作品フォルダの外にあった .srt ファイル（字幕フォルダの中に作品名のフォルダを作って移動してください）:',
+        lib_failed: '読み込めなかった .epub ファイル（破損、または DRM で保護されている可能性があります）:',
+        lib_root_missing: 'フォルダが見つからないため、この段階は中止されました（何も削除されていません）: {s}',
+        lib_log: '詳細ログ', lib_error: 'エラー: {e}',
+        lib_err_busy: 'インデックス作成中は変更できません。', lib_err_notfound: 'そのフォルダは存在しません。',
+        lib_data: 'データベースの保存先', lib_saved: '保存しました。次回のインデックス作成から反映されます。',
+        lib_db_lead: 'subs.db と epub.db を、指定した既存のフォルダへそのまま移動します。設定とログは移動しません。',
+        lib_db_move: '移動', lib_db_default: '既定の場所に戻す', lib_db_is_default: '既定の場所です。',
+        lib_db_moving: '移動中です... 別のドライブへの移動は数十秒かかることがあります。',
+        lib_db_none: 'まだありません', lib_db_moved: 'データベースを移動しました。',
+        lib_db_old_kept: 'データベースを移動しました。ただし使用中のため、元のファイルを削除できませんでした。不要であれば手動で削除してください: {files}',
+        lib_db_err_busy: 'インデックス作成中は移動できません。', lib_db_err_same: 'データベースはすでにこのフォルダにあります。',
+        lib_db_err_exists: 'そのフォルダにはすでに subs.db または epub.db があります。上書きはしません。',
+        lib_db_err_notwritable: 'そのフォルダには書き込めません。',
+        lib_db_err_failed: '移動できませんでした。データベースは元の場所のままです。',
+        lib_not_set: '未設定です。「変更」からフォルダを指定してください。',
+        lib_root_not_set: 'フォルダが未設定のため、この段階は省略されました: {s}',
+        fav_title: 'お気に入りの書き出し・読み込み',
+        fav_lead: 'お気に入りはこのブラウザに、アドレス（ポート）ごとに保存されます。別のアドレスやブラウザへ移すときは、ここで書き出して、移し先で読み込んでください。',
+        fav_export: '書き出す', fav_import: '読み込む',
+        fav_exported: '{n} 件を書き出しました。',
+        fav_imported: '{added} 件を追加しました（{same} 件は既にありました）。',
+        fav_bad_file: 'お気に入りのファイルとして読み込めませんでした。',
+        port_title: 'ポート',
+        port_lead: '露草はこのパソコンの中だけで、このポート番号で動きます（http://127.0.0.1:{port}/）。他のアプリが同じ番号を使っている場合は、別の番号（1024〜65535）に変更してください。お気に入りはポートごとに保存されるため、変更前に上で書き出しておいてください。',
+        port_save: '保存', port_bad: '1024〜65535 の数字を入力してください。',
+        port_restart: '保存しました。露草を閉じて起動し直すと http://127.0.0.1:{port}/ で開きます。',
+        port_env: '環境変数 AOBANA_PORT が設定されているため、ここでの設定は使われません。',
+      },
+      en: {
+        app: 'Aobana', tab_search: 'Search', tab_media: 'Media', tab_library: 'Library', tab_guide: 'Guide',
+        tab_saved: 'Favorites',
+        title_results: 'Example sentences for 「{q}」',
+        lang_label: 'English', theme_label: 'Theme',
+        theme_paper: 'Paper', theme_haze: 'Haze', theme_night: 'Night', theme_midnight: 'Midnight',
+        media_all: 'All', media_subs: 'Subs', media_epub: 'Books',
+        furigana: 'Show / hide furigana (F)', shortcuts: 'Keyboard shortcuts (?)', sc_button: 'Shortcuts',
+        sort_recommended: 'Recommended', sort_chrono: 'Chronological', sort_desc: 'Longest', sort_asc: 'Shortest', sort_random: 'Random',
+        sort_title: 'Sort sentences',
+        filter_folders: 'Filter titles', all: 'All', menu: 'Menu',
+        placeholder: 'Search (e.g. 食べる, たべる, "食べて")', exact: 'Exact', exact_title: 'Match the form exactly as typed',
+        recent: 'Recent searches:', searching: 'Searching...', no_results: 'No matching sentences found.',
+        no_more: 'No more results', loading: 'Loading...', error: 'Something went wrong', load_failed: 'Could not load',
+        chars: '{n} chars', filtering: 'Filtered to: {f}', clear_filter: 'Clear filter',
+        empty_title: 'Your library is empty',
+        empty_body: 'Put subtitle files (.srt) and e-books (.epub) in your folders, then build the index in the Library tab to start searching.',
+        empty_btn: 'Open Library',
+        no_saved: 'No favorites yet. Press ★ on a sentence to save it here.',
+        saved_count: '{n} saved',
+        media_summary: '{shows} shows · {books} books', media_filter: 'Filter by title or author',
+        media_none: 'Nothing matches.', back_media: 'All media',
+        stat_eps: '{n} episodes', stat_lines: '{n} lines', stat_chaps: '{n} chapters', stat_sents: '{n} sentences',
+        kind_subs: 'SUBS', kind_epub: 'BOOK',
+        sc_title: 'Keyboard shortcuts', sc_focus: 'Focus the search bar', sc_next: 'Select the next card', sc_prev: 'Select the previous card',
+        sc_context: 'Show / hide context', sc_save: 'Add to / remove from favorites', sc_furigana: 'Show / hide furigana',
+        sc_help: 'Show this help', sc_close: 'Close a dialog', close: 'Close',
+        welcome_title: 'Welcome to Aobana',
+        welcome_body: 'Aobana (露草) is an offline search engine for Japanese example sentences, built from your own subtitles and e-books. Sentences come with furigana, and you can open the surrounding context.',
+        welcome_s1: 'Put subtitle files (.srt) and e-books (.epub) in your folders - the <b>Library</b> tab shows where',
+        welcome_s2: 'Press "Index library" in the <b>Library</b> tab',
+        welcome_s3: 'Search for words and phrases in the <b>Search</b> tab',
+        welcome_more: 'The <b>Guide</b> tab explains everything in more detail.',
+        welcome_guide: 'Read the guide', welcome_start: 'Get started', welcome_again: 'Show the welcome screen again',
+        update_title: 'A new version is available',
+        update_body: "You're on version <b>{current}</b>. The latest available is <b>{latest}</b>.",
+        update_more: 'You can download it from the release page on GitHub.',
+        update_later: 'Later', update_get: 'Open the release page',
+        lib_title: 'Library',
+        lib_lead: 'Aobana only reads files in the two folders below. Whenever you add, remove or change files, press "Index library". Only changed files are processed, so later runs are quick.',
+        lib_step1_t: 'Add files', lib_step1_d: 'Subtitles go in one folder per show; books go straight into the books folder.',
+        lib_step2_t: 'Index library', lib_step2_d: 'Every sentence is analysed into a search database. A large library can take a few minutes.',
+        lib_step3_t: 'Search', lib_step3_d: 'When it finishes, go to the Search tab.',
+        lib_subs: 'Subtitles folder', lib_books: 'Books folder',
+        lib_open: 'Open folder', lib_change: 'Change', lib_save: 'Save', lib_cancel: 'Cancel',
+        lib_change_hint: 'Paste the path of an existing folder',
+        lib_disk_subs: 'In the folder: {n} .srt files', lib_disk_books: 'In the folder: {n} .epub files',
+        lib_loose: '{n} .srt files are not inside a show folder (they will not be read)',
+        lib_other: '{n} other files (anything that is not .srt / .epub is ignored)',
+        lib_missing: 'This folder does not exist.',
+        lib_indexed_subs: 'Indexed: {files} files · {rows} lines',
+        lib_indexed_books: 'Indexed: {files} books · {rows} sentences',
+        lib_run: 'Index library', lib_running: 'Indexing...',
+        lib_stage_subs: 'Subtitles', lib_stage_epub: 'Books',
+        lib_done: 'Indexing finished.', lib_done_search: 'Start searching',
+        lib_col_stage: '', lib_col_new: 'Added / updated', lib_col_same: 'Unchanged', lib_col_removed: 'Removed',
+        lib_skipped_loose: '.srt files outside any show folder (make a folder named after the show inside the subtitles folder and move them into it):',
+        lib_failed: '.epub files that could not be read (damaged, or protected by DRM):',
+        lib_root_missing: 'This stage was stopped because its folder is missing (nothing was removed): {s}',
+        lib_log: 'Detailed log', lib_error: 'Error: {e}',
+        lib_err_busy: 'Folders cannot be changed while indexing.', lib_err_notfound: 'That folder does not exist.',
+        lib_data: 'Databases folder', lib_saved: 'Saved. It takes effect at the next indexing run.',
+        lib_db_lead: 'Moves subs.db and epub.db, as they are, into an existing folder you choose. Settings and logs stay where they are.',
+        lib_db_move: 'Move', lib_db_default: 'Back to the default', lib_db_is_default: 'This is the default folder.',
+        lib_db_moving: 'Moving... a move to another drive can take a few dozen seconds.',
+        lib_db_none: 'not there yet', lib_db_moved: 'The databases were moved.',
+        lib_db_old_kept: 'The databases were moved, but the old files were in use and could not be deleted. Delete them by hand if you no longer need them: {files}',
+        lib_db_err_busy: 'The databases cannot be moved while indexing.', lib_db_err_same: 'The databases are already in this folder.',
+        lib_db_err_exists: 'That folder already holds a subs.db or epub.db. Nothing is overwritten.',
+        lib_db_err_notwritable: 'That folder cannot be written to.',
+        lib_db_err_failed: 'The move failed. The databases are still where they were.',
+        lib_not_set: 'Not set. Choose a folder with Change.',
+        lib_root_not_set: 'This stage was skipped because its folder is not set: {s}',
+        fav_title: 'Export and import favorites',
+        fav_lead: 'Favorites are kept in this browser, separately for each address (port). To move them to another address or browser, export them here and import them there.',
+        fav_export: 'Export', fav_import: 'Import',
+        fav_exported: 'Exported {n} favorites.',
+        fav_imported: 'Added {added} ({same} were already there).',
+        fav_bad_file: 'That file could not be read as favorites.',
+        port_title: 'Port',
+        port_lead: 'Aobana runs only on this computer, on this port number (http://127.0.0.1:{port}/). If another app uses the same number, change it to another one (1024 to 65535). Favorites are kept per port, so export them above before you change it.',
+        port_save: 'Save', port_bad: 'Enter a number from 1024 to 65535.',
+        port_restart: 'Saved. Close Aobana and start it again, and it opens at http://127.0.0.1:{port}/.',
+        port_env: 'The AOBANA_PORT environment variable is set, so this setting is not used.',
+      },
+    };
+    function t(key, vars) {
+      let s = (I18N[LANG] && I18N[LANG][key]) ?? I18N.ja[key] ?? key;
+      if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(v);
+      return s;
+    }
+    function applyI18n(root = document) {
+      root.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+      root.querySelectorAll('[data-i18n-html]').forEach(el => { el.innerHTML = t(el.dataset.i18nHtml); });
+      root.querySelectorAll('[data-i18n-placeholder]').forEach(el => { el.placeholder = t(el.dataset.i18nPlaceholder); });
+      root.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
+    }
+    function setLang(lang) {
+      store.set('lang', lang);
+      location.reload();
+    }
+
+    const THEMES = ['paper', 'haze', 'night', 'midnight'];
+    function currentTheme() { return document.documentElement.getAttribute('data-theme') || 'night'; }
+    function setTheme(name) {
+      document.documentElement.setAttribute('data-theme', name);
+      store.set('theme', name);
+      renderTopbarControls();
+    }
+
+    const PARAMS = new URLSearchParams(window.location.search);
+    const TAB = PARAMS.get('view') === 'saved' ? 'saved'
+              : ['search', 'saved', 'media', 'library', 'guide'].includes(PARAMS.get('tab')) ? PARAMS.get('tab') : 'search';
+    const SORTS = ['recommended', 'chrono', 'desc', 'asc', 'random'];
+    const MEDIAS = ['all', 'subs', 'epub'];
+    const SORT = SORTS.includes(PARAMS.get('sort')) ? PARAMS.get('sort')
+               : (SORTS.includes(store.get('sort')) ? store.get('sort') : 'recommended');
+    const MEDIA = MEDIAS.includes(PARAMS.get('media')) ? PARAMS.get('media')
+                : (MEDIAS.includes(store.get('media')) ? store.get('media') : 'all');
+    let currentFolder = PARAMS.get('folder') || null;
+    function searchParams() {
+      const p = new URLSearchParams(window.location.search);
+      p.delete('tab');
+      p.set('sort', SORT);
+      p.set('media', MEDIA);
+      return p;
+    }
+
+    let allResults = [];
+    let observer;
+    const BATCH_SIZE = 25;
+    function lineId(line) {
+      return btoa(unescape(encodeURIComponent(line)));
+    }
+
+    function loadSavedSentences() {
+      let raw, list;
+      try {
+        raw = localStorage.getItem('savedSentences');
+        list = JSON.parse(raw || '[]');
+      } catch (e) {
+        console.error('savedSentences unreadable, left as is:', e);
+        return [];
+      }
+      if (!Array.isArray(list)) return [];
+      const seen = new Set();
+      const out = [];
+      let changed = false;
+      for (const s of list) {
+        if (s && typeof s.line === 'string') {
+          const id = lineId(s.line);
+          if (seen.has(id)) { changed = true; continue; }
+          seen.add(id);
+          if (s.id !== id) {
+            if (s.legacy_id === undefined) s.legacy_id = s.id;
+            s.id = id;
+            changed = true;
+          }
+        }
+        out.push(s);
+      }
+      if (changed) {
+        try {
+          if (localStorage.getItem('savedSentences_backup_v1') === null) {
+            localStorage.setItem('savedSentences_backup_v1', raw);
+          }
+          localStorage.setItem('savedSentences', JSON.stringify(out));
+        } catch (e) {
+          console.error('savedSentences re-key not saved:', e);
+        }
+      }
+      return out;
+    }
+
+    let savedSentences = loadSavedSentences();
+
+    const searchSeed = Math.floor(Math.random() * 2147483647);
+    const clientToken = (() => {
+      try {
+        let tok = sessionStorage.getItem('subsClient');
+        if (!tok) {
+          tok = Math.random().toString(36).slice(2) + Date.now().toString(36);
+          sessionStorage.setItem('subsClient', tok);
+        }
+        return tok;
+      } catch (e) {
+        return 'tab-' + Math.random().toString(36).slice(2);
+      }
+    })();
+    function apiSearchUrl(qs) {
+      return `/api/search?${qs}&seed=${searchSeed}&client=${encodeURIComponent(clientToken)}`;
+    }
+    function apiPost(url, body) {
+      return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Aobana': '1' }, body: JSON.stringify(body || {}) })
+        .then(r => r.json());
+    }
+
+    let currentSearchController = null;
+    let currentOffset = 0;
+    let isFetchingMore = false;
+    let hasMoreResults = true;
+    let loadMoreObserver = null;
+    let searchGen = 0;
+
+    let epSentinelObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const sentinel = entry.target;
+                const fileEnc = sentinel.dataset.file;
+                const offset = parseInt(sentinel.dataset.offset, 10);
+                epSentinelObserver.unobserve(sentinel);
+                setTimeout(() => {
+                    loadMoreEpisodeSentinel(sentinel, fileEnc, offset);
+                }, 100);
+            }
+        });
+    }, { rootMargin: '500px 0px 500px 0px' });
+
+    function setTitle(part) {
+      document.title = part ? `${part} | ${t('app')}` : t('app');
+    }
+
+    async function initFetch() {
+      const q = PARAMS.get('q');
+      setTitle(q ? t('title_results', { q }) : t('tab_search'));
+
+      if (!q) {
+        showSearchHistory();
+        return;
+      }
+
+      saveToHistory(q);
+      store.set('aobana_last_search', window.location.pathname + window.location.search);
+
+      if (currentSearchController) {
+          currentSearchController.abort();
+      }
+      currentSearchController = new AbortController();
+      searchGen++;
+      hasMoreResults = false;
+
+      document.getElementById('history-state').style.display = 'none';
+      document.getElementById('main-loading').style.display = 'flex';
+      document.getElementById('results').innerHTML = '';
+      document.getElementById('empty-state').style.display = 'none';
+
+      try {
+        const response = await fetch(apiSearchUrl(`${searchParams().toString()}&limit=500&offset=0`), {
+            signal: currentSearchController.signal
+        });
+        const data = await response.json();
+
+        if (data.aborted) return;
+
+        if (data.results.length === 0 && currentFolder) {
+            const url = new URL(window.location);
+            url.searchParams.delete('folder');
+            window.location.href = url.toString();
+            return;
+        }
+
+        allResults = data.results;
+        hasMoreResults = data.has_more;
+        currentOffset = 500;
+
+        renderSidebar(data);
+        renderBatches();
+        setupLoadMoreSentinel();
+
+      } catch (err) {
+        if (err.name === 'AbortError') {
+            console.log("Previous search aborted.");
+        } else {
+            console.error("Fetch error:", err);
+        }
+      } finally {
+        if (currentSearchController && !currentSearchController.signal.aborted) {
+            document.getElementById('main-loading').style.display = 'none';
+        }
+      }
+    }
+
+    function saveToHistory(q) {
+      let history;
+      try { history = JSON.parse(store.get('searchHistory', '[]')); } catch (e) { history = []; }
+      if (!Array.isArray(history)) history = [];
+      history = history.filter(item => item !== q);
+      history.unshift(q);
+      if (history.length > 50) history.pop();
+      store.set('searchHistory', JSON.stringify(history));
+    }
+
+    function showSearchHistory() {
+      let history;
+      try { history = JSON.parse(store.get('searchHistory', '[]')); } catch (e) { history = []; }
+      if (!Array.isArray(history)) history = [];
+      const panel = document.getElementById('history-state');
+      renderFilterNote();
+      if (history.length > 0) {
+        const keep = new URLSearchParams();
+        if (currentFolder) keep.set('folder', currentFolder);
+        const chips = history.slice(0, 15).map(q => {
+          const p = new URLSearchParams(keep); p.set('q', q);
+          return `<a href="/?${p.toString()}" class="history-chip" draggable="false">${esc(q)}</a>`;
+        }).join('');
+        panel.innerHTML = `<div class="history-label">${esc(t('recent'))}</div><div class="history-chips">${chips}</div>`;
+        panel.style.display = 'block';
+      } else {
+        panel.style.display = 'none';
+      }
+
+      const historySignal = currentSearchController ? currentSearchController.signal : undefined;
+      fetch(apiSearchUrl(`q=&media=${encodeURIComponent(MEDIA)}&limit=0`), historySignal ? { signal: historySignal } : {})
+        .then(r => r.json())
+        .then(data => {
+          renderSidebar(data);
+          if (!data.global_total && !(data.all_folders || []).length) showEmptyLibrary();
+        })
+        .catch(() => {});
+    }
+
+    function renderFilterNote() {
+      const note = document.getElementById('filter-note');
+      if (!note) return;
+      if (currentFolder) {
+        note.innerHTML = `<span>${esc(t('filtering', { f: currentFolder }))}</span><button type="button" title="${esc(t('clear_filter'))}" onclick="setFolder(null, event)">✕</button>`;
+        note.hidden = false;
+      } else {
+        note.hidden = true;
+      }
+    }
+
+    function showEmptyLibrary() {
+      const empty = document.getElementById('empty-library');
+      if (empty) empty.hidden = false;
+      document.getElementById('history-state').style.display = 'none';
+    }
+
+    function renderSidebar(data) {
+      const list = document.getElementById('folder-list-dynamic');
+      let html = `
+        <li>
+          <a href="#" data-folder="" class="folder-link ${!currentFolder ? 'selected' : ''}" id="folder-all" draggable="false">
+            <span>${esc(t('all'))}</span>
+            <span class="count-badge">${fmt(data.global_total || 0)}</span>
+          </a>
+        </li>`;
+      if (data.all_folders) {
+        data.all_folders.forEach(f => {
+          const isSelected = currentFolder === f ? 'selected' : '';
+          const count = data.folder_counts && data.folder_counts[f] !== undefined ? data.folder_counts[f] : 0;
+          html += `
+          <li>
+            <a href="#" data-folder="${esc(f)}" class="folder-link ${isSelected}" draggable="false">
+              <span class="folder-name">${esc(f)}</span>
+              ${PARAMS.get('q') ? `<span class="count-badge">${fmt(count)}</span>` : ''}
+            </a>
+          </li>`;
+        });
+      }
+      list.innerHTML = html;
+      filterFolders();
+
+      const scrollPos = sessionStorageGet('sidebarScroll');
+      if (scrollPos) {
+        setTimeout(() => {
+          const sidebar = document.querySelector('.sidebar');
+          if (sidebar) sidebar.scrollTop = parseInt(scrollPos, 10);
+        }, 0);
+      }
+    }
+    function sessionStorageGet(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
+
+    function filterFolders() {
+      const input = document.getElementById('folder-filter');
+      const needle = input ? input.value.trim().toLowerCase() : '';
+      document.querySelectorAll('#folder-list-dynamic li').forEach(li => {
+        const link = li.querySelector('.folder-link[data-folder]');
+        if (!link || !link.dataset.folder) { li.hidden = false; return; }
+        li.hidden = !!needle && !link.dataset.folder.toLowerCase().includes(needle);
+      });
+    }
+
+    function setMediaMode(next) {
+      store.set('media', next);
+      const url = new URL(window.location);
+      url.searchParams.set('media', next);
+      window.location.href = url.toString();
+    }
+
+    function setFolder(folder, event) {
+      if (event && event.preventDefault) event.preventDefault();
+      const url = new URL(window.location);
+      url.searchParams.delete('view');
+      if (folder) url.searchParams.set('folder', folder);
+      else url.searchParams.delete('folder');
+      window.location.href = url.toString();
+    }
+
+    function toggleFurigana() {
+      const off = document.documentElement.classList.toggle('no-furigana');
+      store.set('furigana', off ? 'off' : 'on');
+      document.querySelectorAll('.furi-btn').forEach(b => b.classList.toggle('off', off));
+    }
+
+    function fitSidebar() {
+      const s = document.querySelector('.sidebar');
+      if (!s) return;
+      const cs = getComputedStyle(s);
+      if (cs.position !== 'sticky') { s.style.height = s.style.maxHeight = ''; return; }
+      const gap = parseFloat(cs.top) || 16;
+      const topRect = s.getBoundingClientRect().top;
+      const h = Math.max(200, window.innerHeight - Math.max(topRect, gap) - gap);
+      s.style.transition = 'none';
+      s.style.height = s.style.maxHeight = Math.round(h) + 'px';
+      requestAnimationFrame(() => { s.style.transition = ''; });
+    }
+    let fitQueued = false;
+    const queueFit = () => { if (!fitQueued) { fitQueued = true; requestAnimationFrame(() => { fitQueued = false; fitSidebar(); }); } };
+    window.addEventListener('scroll', queueFit, { passive: true });
+    window.addEventListener('resize', queueFit);
+    window.addEventListener('load', fitSidebar);
+    document.addEventListener('DOMContentLoaded', fitSidebar);
+
+    window.addEventListener('beforeunload', () => {
+      const sidebar = document.querySelector('.sidebar');
+      if (sidebar) {
+        try { sessionStorage.setItem('sidebarScroll', sidebar.scrollTop); } catch (e) {}
+      }
+    });
+
+    function renderBatches() {
+      const resultsContainer = document.getElementById('results');
+      const emptyState = document.getElementById('empty-state');
+      resultsContainer.innerHTML = '';
+      starRows.clear();
+
+      if (allResults.length === 0) {
+        emptyState.style.display = 'block';
+        if (observer) observer.disconnect();
+        return;
+      } else {
+        emptyState.style.display = 'none';
+      }
+
+      const numBatches = Math.ceil(allResults.length / BATCH_SIZE);
+      for (let i = 0; i < numBatches; i++) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'batch-wrapper';
+        wrapper.dataset.index = i;
+        wrapper.innerHTML = buildBatchHTML(i);
+        resultsContainer.appendChild(wrapper);
+      }
+    }
+
+    function setupLoadMoreSentinel() {
+      const resultsContainer = document.getElementById('results');
+      let sentinel = document.getElementById('load-more-sentinel');
+      if (!sentinel) {
+          sentinel = document.createElement('div');
+          sentinel.id = 'load-more-sentinel';
+          resultsContainer.insertAdjacentElement('afterend', sentinel);
+      }
+
+      if (!hasMoreResults) {
+          sentinel.innerHTML = `<div class="status-line" style="padding-top:4em;">${esc(t('no_more'))}</div>`;
+      } else {
+          sentinel.innerHTML = '';
+      }
+
+      if (loadMoreObserver) loadMoreObserver.disconnect();
+
+      loadMoreObserver = new IntersectionObserver(async (entries) => {
+          if (entries[0].isIntersecting && hasMoreResults && !isFetchingMore) {
+              isFetchingMore = true;
+              setTimeout(async () => {
+                  isFetchingMore = false;
+                  await fetchMoreResults();
+              }, 150);
+          }
+      }, { rootMargin: '500px 0px 500px 0px' });
+
+      loadMoreObserver.observe(sentinel);
+    }
+
+    async function fetchMoreResults() {
+        if (!hasMoreResults || isFetchingMore) return;
+        isFetchingMore = true;
+        const myGen = searchGen;
+        const sentinel = document.getElementById('load-more-sentinel');
+
+        try {
+            sentinel.innerHTML = `<div class="status-line" style="padding:1.5em;">${esc(t('loading'))}</div>`;
+
+            const response = await fetch(apiSearchUrl(`${searchParams().toString()}&limit=500&offset=${currentOffset}`));
+            const data = await response.json();
+
+            if (myGen !== searchGen) {
+                return;
+            }
+
+            if (data.results.length > 0) {
+                const startIndex = allResults.length;
+                allResults = allResults.concat(data.results);
+                hasMoreResults = data.has_more;
+                currentOffset += 500;
+                appendBatches(startIndex, data.results.length);
+            } else {
+                hasMoreResults = false;
+            }
+
+            if (!hasMoreResults) {
+                sentinel.innerHTML = `<div class="status-line" style="padding:1.5em;">${esc(t('no_more'))}</div>`;
+            } else {
+                sentinel.innerHTML = '';
+                const rect = sentinel.getBoundingClientRect();
+                if (rect.top < window.innerHeight + 500) {
+                    setTimeout(fetchMoreResults, 100);
+                }
+            }
+        } catch (err) {
+            console.error("Fetch more error:", err);
+            sentinel.innerHTML = '';
+        } finally {
+            isFetchingMore = false;
+        }
+    }
+
+    function appendBatches(startIndex, count) {
+      const resultsContainer = document.getElementById('results');
+      const startBatch = Math.floor(startIndex / BATCH_SIZE);
+      const endBatch = Math.ceil((startIndex + count) / BATCH_SIZE);
+
+      for (let i = startBatch; i < endBatch; i++) {
+        if (!document.querySelector(`.batch-wrapper[data-index="${i}"]`)) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'batch-wrapper';
+            wrapper.dataset.index = i;
+            wrapper.innerHTML = buildBatchHTML(i);
+            resultsContainer.appendChild(wrapper);
+        }
+      }
+    }
+
+    const starRows = new Map();
+    let starSeq = 0;
+    function starKey(item) { const k = String(++starSeq); starRows.set(k, item); return k; }
+    function starRow(btn) {
+      const item = btn && starRows.get(btn.dataset.star);
+      return item ? JSON.parse(JSON.stringify(item)) : null;
+    }
+
+    function buildBatchHTML(batchIndex) {
+      const start = batchIndex * BATCH_SIZE;
+      const end = Math.min(start + BATCH_SIZE, allResults.length);
+      const currentQ = PARAMS.get('q') || '';
+      let html = '';
+      for (let i = start; i < end; i++) {
+        const r = allResults[i];
+        const rId = lineId(r.line);
+        const isSaved = savedSentences.some(s => s.id === rId);
+
+        const savedItemData = {...r, id: rId};
+        if (!savedItemData.original_q) savedItemData.original_q = currentQ;
+
+        html += `
+        <div class="card" id="card-${rId}">
+          <div class="card-meta">
+            <div class="src">${esc(r.title || r.folder)}</div>
+            <div class="chars">${r.char_count !== undefined ? esc(t('chars', { n: r.char_count })) : ''}</div>
+          </div>
+          <div class="file-title">
+            <span class="main-sentence">${r.display_line}</span>
+            <div class="actions-box">
+              <button class="icon-btn ${isSaved ? 'star-active' : ''}" onclick="toggleSave('${rId}', this)" data-star="${starKey(savedItemData)}">
+                <span>★</span>
+              </button>
+              <button class="icon-btn" onclick="toggleContext(this)" data-rowid="${r.rowid}" data-file="${encodeURIComponent(r.file)}" data-saved-context="${r.context ? encodeURIComponent(r.context) : ''}">
+                <span>⋯</span>
+              </button>
+            </div>
+          </div>
+          <div class="context">${r.context ? r.context : ''}</div>
+        </div>
+        `;
+      }
+      return html;
+    }
+
+    async function toggleContext(btn) {
+      const ctx = btn.parentElement.parentElement.nextElementSibling;
+      const isHidden = window.getComputedStyle(ctx).display === 'none';
+      if (isHidden) {
+        const savedCtx = btn.dataset.savedContext;
+        if (savedCtx && !ctx.dataset.loaded) {
+           ctx.innerHTML = decodeURIComponent(savedCtx);
+           ctx.dataset.loaded = 'true';
+        }
+
+        if (!ctx.dataset.loaded) {
+          ctx.innerHTML = `<div class="status-line">${esc(t('loading'))}</div>`;
+          ctx.style.display = 'block';
+          ctx.classList.remove('anim-close');
+          ctx.classList.add('anim-open');
+          try {
+            const rowid = btn.dataset.rowid;
+            const fileEnc = btn.dataset.file;
+            let q = PARAMS.get('q') || '';
+            try {
+               const starBtn = btn.previousElementSibling;
+               const btnData = starRow(starBtn);
+               if (btnData && btnData.original_q) q = btnData.original_q;
+            } catch(e) {}
+            const res = await fetch(`/api/context?rowid=${rowid}&file=${fileEnc}&q=${encodeURIComponent(q)}`);
+            const data = await res.json();
+            if (data.context) {
+              ctx.innerHTML = data.context;
+            } else {
+              ctx.innerHTML = `<div class="error-text">${esc(t('error'))}</div>`;
+            }
+            ctx.dataset.loaded = 'true';
+          } catch (e) {
+            ctx.innerHTML = `<div class="error-text">${esc(t('load_failed'))}</div>`;
+          }
+        } else {
+          ctx.style.display = 'block';
+          ctx.classList.remove('anim-open');
+          ctx.classList.add('anim-open');
+        }
+      } else {
+        ctx.classList.remove('anim-open');
+        ctx.classList.add('anim-close');
+        setTimeout(() => {
+          if (ctx.classList.contains('anim-close')) {
+            ctx.style.display = 'none';
+            ctx.classList.remove('anim-close');
+          }
+        }, 140);
+      }
+    }
+
+    function toggleSave(id, btn) {
+      const isSaved = btn.classList.contains('star-active');
+      const data = starRow(btn);
+      if (!data) return;
+
+      if (isSaved) {
+        savedSentences = savedSentences.filter(s => s.id !== id);
+        btn.classList.remove('star-active');
+      } else {
+        savedSentences.unshift(data);
+        btn.classList.add('star-active');
+      }
+      store.set('savedSentences', JSON.stringify(savedSentences));
+
+      if (TAB === 'saved') showSavedSentences();
+    }
+
+    function initSavedTab() {
+      setTitle(t('tab_saved'));
+      document.getElementById('saved-head').after(document.getElementById('empty-state'), document.getElementById('results'));
+      showSavedSentences();
+    }
+
+    function showSavedSentences() {
+      allResults = savedSentences;
+      document.getElementById('saved-meta').textContent = t('saved_count', { n: fmt(savedSentences.length) });
+      document.getElementById('empty-state').textContent = t('no_saved');
+      renderBatches();
+    }
+
+    let mediaItems = [];
+    const MEDIA_TAB_FILTER = MEDIAS.includes(store.get('mediaTabFilter')) ? store.get('mediaTabFilter') : 'all';
+
+    function statPills(it) {
+      if (it.media === 'epub') {
+        return `<span class="stat-pill secondary">${esc(t('stat_chaps', { n: fmt(it.episodes) }))}</span>
+                <span class="stat-pill">${esc(t('stat_sents', { n: fmt(it.lines) }))}</span>`;
+      }
+      return `<span class="stat-pill secondary">${esc(t('stat_eps', { n: fmt(it.episodes) }))}</span>
+              <span class="stat-pill">${esc(t('stat_lines', { n: fmt(it.lines) }))}</span>`;
+    }
+
+    const MEDIA_STATE = 'aobana_last_media';
+    let mediaRestoring = false;
+    function mediaUrl() { return window.location.pathname + window.location.search; }
+    function readMediaState() {
+      try { const v = JSON.parse(store.get(MEDIA_STATE) || 'null'); return v && typeof v.url === 'string' ? v : null; }
+      catch (e) { return null; }
+    }
+    function saveMediaState() {
+      if (TAB !== 'media' || mediaRestoring) return;
+      const open = [];
+      document.querySelectorAll('#results .episode-card:not(.collapsed)').forEach(card => {
+        const h = card.querySelector('.episode-header');
+        const loaded = card.querySelectorAll('.episode-line').length;
+        if (h && loaded) open.push({ file: h.dataset.file, loaded });
+      });
+      store.set(MEDIA_STATE, JSON.stringify({ url: mediaUrl(), open, y: Math.round(window.scrollY), at: mediaAnchor() }));
+    }
+    function mediaAnchor() {
+      const bar = document.querySelector('.topbar');
+      const probeY = Math.max(0, bar ? bar.getBoundingClientRect().bottom : 0) + 8;
+      const hit = document.elementFromPoint(Math.round(window.innerWidth / 2), probeY);
+      const el = hit && hit.closest('.episode-line, .episode-header');
+      const card = el && el.closest('.episode-card');
+      if (!card) return null;
+      const header = card.querySelector('.episode-header');
+      const idx = el.classList.contains('episode-line') ? [...card.querySelectorAll('.episode-line')].indexOf(el) : -1;
+      return { file: header.dataset.file, idx, dy: Math.round(el.getBoundingClientRect().top) };
+    }
+    function scrollToMediaAnchor(state) {
+      const at = state.at;
+      const header = at && [...document.querySelectorAll('#results .episode-header')].find(h => h.dataset.file === at.file);
+      const el = header && (at.idx < 0 ? header : header.parentElement.querySelectorAll('.episode-line')[at.idx]);
+      if (!el) { window.scrollTo(0, state.y || 0); return; }
+      el.scrollIntoView({ block: 'start' });
+      window.scrollBy(0, el.getBoundingClientRect().top - at.dy);
+    }
+    let mediaScrollQueued = false;
+    window.addEventListener('scroll', () => {
+      if (TAB !== 'media' || mediaScrollQueued) return;
+      mediaScrollQueued = true;
+      setTimeout(() => { mediaScrollQueued = false; saveMediaState(); }, 300);
+    }, { passive: true });
+
+    async function restoreMediaState(state) {
+      mediaRestoring = true;
+      try {
+        for (const o of state.open || []) {
+          const header = [...document.querySelectorAll('#results .episode-header')].find(h => h.dataset.file === o.file);
+          if (!header) continue;
+          await expandEpisode(header);
+          const content = header.parentElement.querySelector('.episode-content');
+          while (content.querySelectorAll('.episode-line').length < o.loaded) {
+            const sentinel = content.querySelector('.ep-sentinel');
+            if (!sentinel) break;
+            epSentinelObserver.unobserve(sentinel);
+            await loadMoreEpisodeSentinel(sentinel, sentinel.dataset.file, parseInt(sentinel.dataset.offset, 10));
+          }
+        }
+        scrollToMediaAnchor(state);
+      } finally {
+        mediaRestoring = false;
+      }
+    }
+
+    function handleMediaTabClick(e) {
+      if (TAB === 'media') {
+        e.preventDefault();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+      const last = readMediaState();
+      if (last) {
+        e.preventDefault();
+        window.location.href = last.url;
+      }
+    }
+
+    async function initMediaTab() {
+      const folder = PARAMS.get('folder');
+      if (folder) return initMediaDetail(folder);
+      store.set(MEDIA_STATE, JSON.stringify({ url: mediaUrl(), open: [], y: 0 }));
+      setTitle(t('tab_media'));
+      const listEl = document.getElementById('media-list');
+      listEl.innerHTML = `<div class="status-line" style="padding:2em;">${esc(t('loading'))}</div>`;
+      try {
+        const data = await fetch('/api/media').then(r => r.json());
+        mediaItems = data.items || [];
+      } catch (e) {
+        listEl.innerHTML = `<div class="status-line error-text" style="padding:2em;">${esc(t('load_failed'))}</div>`;
+        return;
+      }
+      if (!mediaItems.length) {
+        document.getElementById('media-body').hidden = true;
+        document.getElementById('media-empty').hidden = false;
+        return;
+      }
+      renderMediaList();
+    }
+
+    function setMediaTabFilter(m) {
+      store.set('mediaTabFilter', m);
+      document.querySelectorAll('#media-seg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.media === m));
+      renderMediaList();
+    }
+
+    function renderMediaList() {
+      const m = store.get('mediaTabFilter', 'all');
+      const needle = (document.getElementById('media-filter').value || '').trim().toLowerCase();
+      const shows = mediaItems.filter(it => it.media === 'subs').length;
+      const books = mediaItems.filter(it => it.media === 'epub').length;
+      document.getElementById('media-summary').textContent = t('media_summary', { shows: fmt(shows), books: fmt(books) });
+      const rows = mediaItems.filter(it => (m === 'all' || it.media === m) &&
+        (!needle || it.folder.toLowerCase().includes(needle) || (it.author || '').toLowerCase().includes(needle)));
+      const listEl = document.getElementById('media-list');
+      if (!rows.length) {
+        listEl.innerHTML = `<div class="status-line" style="padding:2em;">${esc(t('media_none'))}</div>`;
+        return;
+      }
+      listEl.innerHTML = rows.map(it => {
+        const p = new URLSearchParams({ tab: 'media', folder: it.folder, media: it.media });
+        return `<a class="media-row" href="/?${p.toString()}" draggable="false">
+          <span class="media-kind ${it.media}">${esc(t('kind_' + it.media))}</span>
+          <span class="media-names">
+            <div class="media-name">${esc(it.folder)}</div>
+            ${it.author ? `<div class="media-author">${esc(it.author)}</div>` : ''}
+          </span>
+          <span class="media-stats">${statPills(it)}</span>
+        </a>`;
+      }).join('');
+    }
+
+    async function initMediaDetail(folder) {
+      setTitle(folder);
+      document.getElementById('media-body').hidden = true;
+      const head = document.getElementById('media-detail');
+      head.hidden = false;
+      head.after(document.getElementById('main-loading'), document.getElementById('results'));
+      const media = MEDIAS.includes(PARAMS.get('media')) ? PARAMS.get('media') : 'all';
+      head.innerHTML = `<a class="back-link" href="/?tab=media">← ${esc(t('back_media'))}</a><h1>${esc(folder)}</h1><div id="media-detail-meta"></div>`;
+      document.getElementById('main-loading').style.display = 'flex';
+      try {
+        const [ep, lib] = await Promise.all([
+          fetch(`/api/episodes?folder=${encodeURIComponent(folder)}&media=${encodeURIComponent(media)}`).then(r => r.json()),
+          fetch('/api/media').then(r => r.json()),
+        ]);
+        const it = (lib.items || []).find(x => x.folder === folder && (media === 'all' || x.media === media));
+        if (it) {
+          document.getElementById('media-detail-meta').innerHTML =
+            `${it.author ? `<div class="muted">${esc(it.author)}</div>` : ''}<div class="media-stats">${statPills(it)}</div>`;
+        }
+        renderEpisodesList(ep.files || []);
+        const state = readMediaState();
+        if (state && state.url === mediaUrl()) {
+          document.getElementById('main-loading').style.display = 'none';
+          await restoreMediaState(state);
+        }
+        saveMediaState();
+      } catch (e) {
+        document.getElementById('results').innerHTML = `<div class="error-text">${esc(t('load_failed'))}</div>`;
+      } finally {
+        document.getElementById('main-loading').style.display = 'none';
+      }
+    }
+
+    function renderEpisodesList(filesList) {
+      const resultsContainer = document.getElementById('results');
+      let html = '';
+      filesList.forEach(item => {
+         const fileHash = btoa(unescape(encodeURIComponent(item.file))).substring(0, 32).replace(/=/g, '');
+         const safeFile = encodeURIComponent(item.file);
+         html += `
+            <div class="card episode-card collapsed" id="ep-card-${fileHash}">
+                <div class="episode-header" data-file="${safeFile}" onclick="expandEpisode(this)">
+                    <div class="episode-title">${esc(item.title)}</div>
+                    <div class="episode-toggle-icon">▼</div>
+                </div>
+                <div class="episode-content"></div>
+            </div>`;
+      });
+      html += '<div style="height: 4em; width: 100%;"></div>';
+      resultsContainer.innerHTML = html;
+      hasMoreResults = false;
+      if (loadMoreObserver) loadMoreObserver.disconnect();
+    }
+
+    async function expandEpisode(header) {
+       const fileEnc = header.dataset.file;
+       const card = header.parentElement;
+       const content = card.querySelector('.episode-content');
+
+       if (card.classList.contains('collapsed')) {
+           card.classList.remove('collapsed');
+
+           if (content.innerHTML.trim() === '') {
+               content.innerHTML = '<div class="spinner" style="margin-top:20px; margin-bottom:20px;"></div>';
+               const folder = PARAMS.get('folder');
+               const media = PARAMS.get('media') || 'all';
+               try {
+                   const response = await fetch(apiSearchUrl(`folder=${encodeURIComponent(folder)}&file=${fileEnc}&media=${encodeURIComponent(media)}&sort=chrono&limit=500&offset=0`));
+                   const data = await response.json();
+                   content.innerHTML = renderBrowseLinesHTML(data.results);
+                   if (data.has_more) {
+                       const sentinelHtml = `<div class="ep-sentinel" data-file="${fileEnc}" data-offset="500" style="height:1px;"></div>`;
+                       content.insertAdjacentHTML('beforeend', sentinelHtml);
+                       const sentinel = content.querySelector('.ep-sentinel');
+                       if (sentinel) epSentinelObserver.observe(sentinel);
+                   }
+               } catch(e) {
+                   content.innerHTML = `<div class="error-text" style="padding:1em;">${esc(t('error'))}</div>`;
+               }
+           }
+           saveMediaState();
+       } else {
+           card.classList.add('collapsed');
+           saveMediaState();
+       }
+    }
+
+    async function loadMoreEpisodeSentinel(sentinel, fileEnc, offset) {
+       if (!sentinel.isConnected || sentinel.dataset.loading) return;
+       sentinel.dataset.loading = '1';
+       const content = sentinel.parentElement;
+       const folder = PARAMS.get('folder');
+       const media = PARAMS.get('media') || 'all';
+       try {
+           sentinel.innerHTML = `<div class="status-line" style="padding:1.5em;">${esc(t('loading'))}</div>`;
+           const response = await fetch(apiSearchUrl(`folder=${encodeURIComponent(folder)}&file=${fileEnc}&media=${encodeURIComponent(media)}&sort=chrono&limit=500&offset=${offset}`));
+           const data = await response.json();
+           sentinel.remove();
+           content.insertAdjacentHTML('beforeend', renderBrowseLinesHTML(data.results));
+           if (data.has_more) {
+               const sentinelHtml = `<div class="ep-sentinel" data-file="${fileEnc}" data-offset="${offset + 500}" style="height:1px;"></div>`;
+               content.insertAdjacentHTML('beforeend', sentinelHtml);
+               const newSentinel = content.querySelector('.ep-sentinel:last-child');
+               if (newSentinel) epSentinelObserver.observe(newSentinel);
+           }
+           saveMediaState();
+       } catch(e) {}
+    }
+
+    function renderBrowseLinesHTML(results) {
+        let linesHtml = '';
+        results.forEach(r => {
+            const rId = lineId(r.line);
+            const isSaved = savedSentences.some(s => s.id === rId);
+            const savedItemData = {...r, id: rId, original_q: ''};
+            linesHtml += `
+              <div class="episode-line">
+                  <span class="main-sentence">${r.display_line}</span>
+                  <div class="actions-box">
+                    <button class="icon-btn ${isSaved ? 'star-active' : ''}" onclick="toggleSave('${rId}', this)" data-star="${starKey(savedItemData)}">
+                      <span>★</span>
+                    </button>
+                  </div>
+              </div>`;
+        });
+        return linesHtml;
+    }
+
+    let libPoll = null;
+    let libWasRunning = false;
+
+    async function initLibraryTab() {
+      setTitle(t('tab_library'));
+      await refreshLibrary();
+    }
+
+    async function refreshLibrary() {
+      let lib;
+      try { lib = await fetch('/api/library').then(r => r.json()); }
+      catch (e) { document.getElementById('lib-folders').innerHTML = `<div class="error-text">${esc(t('load_failed'))}</div>`; return; }
+      document.getElementById('lib-folders').innerHTML =
+        folderCard('subs', t('lib_subs'), lib.subs_dir, lib.subs_disk, lib.subs_indexed) +
+        folderCard('books', t('lib_books'), lib.books_dir, lib.books_disk, lib.books_indexed);
+      renderDbCard(lib);
+      renderPortCard(lib);
+      renderIndexStatus(lib.index);
+      if (lib.index && lib.index.running) startPolling();
+    }
+
+    function folderCard(which, title, path, disk, indexed) {
+      const isSubs = which === 'subs';
+      let facts = '';
+      if (path == null) {
+        facts = `<div>${esc(t('lib_not_set'))}</div>`;
+      } else if (!disk) {
+        facts = `<div class="warn">${esc(t('lib_missing'))}</div>`;
+      } else {
+        facts += `<div>${esc(t(isSubs ? 'lib_disk_subs' : 'lib_disk_books', { n: fmt(disk.files) }))}</div>`;
+        if (disk.loose) facts += `<div class="warn">${esc(t('lib_loose', { n: fmt(disk.loose) }))}</div>`;
+        if (disk.other) facts += `<div>${esc(t('lib_other', { n: fmt(disk.other) }))}</div>`;
+      }
+      facts += `<div>${esc(t(isSubs ? 'lib_indexed_subs' : 'lib_indexed_books', { files: fmt(indexed.files), rows: fmt(indexed.rows) }))}</div>`;
+      return `<div class="lib-card" id="lib-card-${which}">
+        <h3>${esc(title)}</h3>
+        ${path == null ? '' : `<span class="path">${esc(path)}</span>`}
+        <div class="facts">${facts}</div>
+        <div class="lib-edit" hidden>
+          <input type="text" value="${esc(path ?? '')}" placeholder="${esc(t('lib_change_hint'))}" spellcheck="false">
+          <div class="btns">
+            <button class="btn primary" onclick="saveFolder('${which}')">${esc(t('lib_save'))}</button>
+            <button class="btn" onclick="toggleFolderEdit('${which}', false)">${esc(t('lib_cancel'))}</button>
+          </div>
+          <div class="lib-msg facts" style="margin:0.5em 0 0;"></div>
+        </div>
+        <div class="btns lib-view-btns">
+          <button class="btn" onclick="openFolder('${which}')" ${disk ? '' : 'disabled'}>${esc(t('lib_open'))}</button>
+          <button class="btn" onclick="toggleFolderEdit('${which}', true)">${esc(t('lib_change'))}</button>
+        </div>
+      </div>`;
+    }
+
+    function toggleFolderEdit(which, on) {
+      const card = document.getElementById(`lib-card-${which}`);
+      card.querySelector('.lib-edit').hidden = !on;
+      card.querySelector('.lib-view-btns').hidden = on;
+      if (on) card.querySelector('.lib-edit input').focus();
+    }
+
+    async function saveFolder(which) {
+      const card = document.getElementById(`lib-card-${which}`);
+      const value = card.querySelector('.lib-edit input').value;
+      const msg = card.querySelector('.lib-msg');
+      const body = which === 'subs' ? { subs_dir: value } : { books_dir: value };
+      const res = await apiPost('/api/library', body).catch(() => ({ error: 'network' }));
+      if (res.error) {
+        msg.innerHTML = `<span class="warn">${esc(res.error === 'busy' ? t('lib_err_busy') : t('lib_err_notfound'))}</span>`;
+        return;
+      }
+      await refreshLibrary();
+      const note = document.getElementById('lib-note');
+      note.textContent = t('lib_saved'); note.hidden = false;
+    }
+
+    function fmtBytes(n) {
+      if (n == null) return t('lib_db_none');
+      return n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(2)} GB` : `${(n / 1024 ** 2).toFixed(1)} MB`;
+    }
+
+    function renderDbCard(lib) {
+      const sizes = lib.db_sizes || {};
+      const facts = ['subs.db', 'epub.db'].map(n => `<div>${esc(n)}: ${esc(fmtBytes(sizes[n]))}</div>`).join('');
+      document.getElementById('lib-data').innerHTML = `
+        <h3>${esc(t('lib_data'))}</h3>
+        <span class="path">${esc(lib.data_dir)}</span>
+        <div class="facts">${lib.db_is_default ? `<div>${esc(t('lib_db_is_default'))}</div>` : ''}${facts}<div>${esc(t('lib_db_lead'))}</div></div>
+        <div class="lib-edit" hidden>
+          <input type="text" value="" placeholder="${esc(t('lib_change_hint'))}" spellcheck="false">
+          <div class="btns">
+            <button class="btn primary" onclick="moveDatabases()">${esc(t('lib_db_move'))}</button>
+            <button class="btn" onclick="toggleDbEdit(false)">${esc(t('lib_cancel'))}</button>
+          </div>
+        </div>
+        <div class="btns lib-view-btns">
+          <button class="btn" onclick="openFolder('data')">${esc(t('lib_open'))}</button>
+          <button class="btn" onclick="toggleDbEdit(true)">${esc(t('lib_change'))}</button>
+          ${lib.db_is_default ? '' : `<button class="btn" onclick="moveDatabases('default')">${esc(t('lib_db_default'))}</button>`}
+        </div>
+        <div class="lib-msg facts" style="margin:0.5em 0 0;"></div>`;
+    }
+
+    function toggleDbEdit(on) {
+      const card = document.getElementById('lib-data');
+      card.querySelector('.lib-edit').hidden = !on;
+      card.querySelector('.lib-view-btns').hidden = on;
+      if (on) card.querySelector('.lib-edit input').focus();
+    }
+
+    async function moveDatabases(target) {
+      const card = document.getElementById('lib-data');
+      const value = target ?? card.querySelector('.lib-edit input').value;
+      const msg = card.querySelector('.lib-msg');
+      card.querySelectorAll('button').forEach(b => b.disabled = true);
+      msg.textContent = t('lib_db_moving');
+      const res = await apiPost('/api/library', { db_dir: value }).catch(() => ({ error: 'network' }));
+      if (res.error) {
+        card.querySelectorAll('button').forEach(b => b.disabled = false);
+        const key = { busy: 'lib_db_err_busy', same: 'lib_db_err_same', exists: 'lib_db_err_exists',
+                      not_found: 'lib_err_notfound', not_writable: 'lib_db_err_notwritable' }[res.error] || 'lib_db_err_failed';
+        msg.innerHTML = `<span class="warn">${esc(t(key))}</span>`;
+        return;
+      }
+      await refreshLibrary();
+      const done = document.getElementById('lib-data').querySelector('.lib-msg');
+      done.innerHTML = res.old_kept && res.old_kept.length
+        ? `<span class="warn">${esc(t('lib_db_old_kept', { files: res.old_kept.join(', ') }))}</span>`
+        : esc(t('lib_db_moved'));
+    }
+
+    function exportFavorites() {
+      const doc = { app: 'aobana', kind: 'favorites', version: 1, exported_at: new Date().toISOString(), items: savedSentences };
+      const blob = new Blob([JSON.stringify(doc, null, 1)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `aobana-favorites-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      favNote(t('fav_exported', { n: fmt(savedSentences.length) }));
+    }
+
+    async function importFavorites(input) {
+      const file = input.files && input.files[0];
+      input.value = '';
+      if (!file) return;
+      let items;
+      try {
+        const doc = JSON.parse(await file.text());
+        items = Array.isArray(doc) ? doc : (doc && Array.isArray(doc.items) ? doc.items : null);
+      } catch (e) { items = null; }
+      if (!items) { favNote(t('fav_bad_file'), true); return; }
+      const have = new Set(savedSentences.map(s => s.id));
+      let added = 0, same = 0;
+      const incoming = [];
+      for (const s of items) {
+        if (!s || typeof s.line !== 'string') continue;
+        const id = lineId(s.line);
+        if (have.has(id)) { same++; continue; }
+        have.add(id);
+        if (s.id !== id && s.legacy_id === undefined && s.id !== undefined) s.legacy_id = s.id;
+        s.id = id;
+        incoming.push(s);
+        added++;
+      }
+      if (added) {
+        if (store.get('savedSentences_backup_v1') === null) store.set('savedSentences_backup_v1', store.get('savedSentences', '[]'));
+        savedSentences = savedSentences.concat(incoming);
+        store.set('savedSentences', JSON.stringify(savedSentences));
+      }
+      favNote(t('fav_imported', { added: fmt(added), same: fmt(same) }));
+    }
+
+    function renderPortCard(lib) {
+      const running = Number(location.port || 80);
+      document.getElementById('port-lead').textContent = t('port_lead', { port: running });
+      document.getElementById('port-input').value = lib.port;
+      const note = document.getElementById('port-note');
+      if (lib.port_env) { note.textContent = t('port_env'); note.hidden = false; }
+      else if (lib.port !== running) { note.textContent = t('port_restart', { port: lib.port }); note.hidden = false; }
+      else note.hidden = true;
+    }
+
+    async function savePort() {
+      const value = document.getElementById('port-input').value.trim();
+      const note = document.getElementById('port-note');
+      const res = await apiPost('/api/library', { port: value }).catch(() => ({ error: 'network' }));
+      if (res.error) { note.textContent = t('port_bad'); note.className = 'notice warn'; note.hidden = false; return; }
+      note.className = 'notice';
+      await refreshLibrary();
+    }
+
+    function favNote(text, warn) {
+      const el = document.getElementById('fav-note');
+      el.textContent = text; el.className = warn ? 'notice warn' : 'notice'; el.hidden = false;
+    }
+
+    function openFolder(which) { apiPost('/api/library/open', { which }).catch(() => {}); }
+
+    async function runIndex() {
+      document.getElementById('lib-note').hidden = true;
+      const res = await apiPost('/api/index').catch(() => null);
+      if (res) renderIndexStatus(res);
+      startPolling();
+    }
+
+    function startPolling() {
+      if (libPoll) return;
+      libWasRunning = true;
+      libPoll = setInterval(async () => {
+        let s;
+        try { s = await fetch('/api/index/status').then(r => r.json()); } catch (e) { return; }
+        renderIndexStatus(s);
+        if (!s.running) {
+          clearInterval(libPoll); libPoll = null;
+          refreshLibrary();
+        }
+      }, 500);
+    }
+
+    function renderIndexStatus(s) {
+      const btn = document.getElementById('lib-run');
+      const box = document.getElementById('lib-status');
+      s = s || {};
+      btn.disabled = !!s.running;
+      btn.querySelector('span').textContent = s.running ? t('lib_running') : t('lib_run');
+      if (!s.started_at) { box.innerHTML = ''; return; }
+      let html = '';
+      if (s.running) {
+        const pct = s.total ? Math.round(100 * s.done / s.total) : 0;
+        html += `<div class="progress"><div style="width:${pct}%"></div></div>
+          <div class="progress-text">${esc(t('lib_stage_' + s.stage))} — ${fmt(s.done)} / ${fmt(s.total)} ${s.current ? '· ' + esc(s.current) : ''}</div>`;
+      } else {
+        const results = s.results || {};
+        if (s.error) html += `<div class="notice err">${esc(t('lib_error', { e: s.error }))}</div>`;
+        else html += `<div class="notice ok">${esc(t('lib_done'))} <a href="/">${esc(t('lib_done_search'))} →</a></div>`;
+        const stages = ['subs', 'epub'].filter(k => results[k]);
+        if (stages.length) {
+          html += `<table class="summary-table"><tr><th></th><th>${esc(t('lib_col_new'))}</th><th>${esc(t('lib_col_same'))}</th><th>${esc(t('lib_col_removed'))}</th></tr>`;
+          stages.forEach(k => {
+            const r = results[k];
+            html += `<tr><td>${esc(t('lib_stage_' + k))}</td><td>${fmt(r.indexed)}</td><td>${fmt(r.unchanged)}</td><td>${fmt(r.removed)}</td></tr>`;
+          });
+          html += '</table>';
+        }
+      }
+      (s.root_not_set || []).forEach(st => {
+        html += `<div class="notice">${esc(t('lib_root_not_set', { s: t('lib_stage_' + st) }))}</div>`;
+      });
+      (s.root_missing || []).forEach(st => {
+        html += `<div class="notice warn">${esc(t('lib_root_missing', { s: t('lib_stage_' + st) }))}</div>`;
+      });
+      if ((s.skipped_loose || []).length) {
+        html += `<div class="notice warn">${esc(t('lib_skipped_loose'))}<ul>${s.skipped_loose.map(f => `<li>${esc(f)}</li>`).join('')}</ul></div>`;
+      }
+      if ((s.failed || []).length) {
+        html += `<div class="notice err">${esc(t('lib_failed'))}<ul>${s.failed.map(f => `<li>${esc(f)}</li>`).join('')}</ul></div>`;
+      }
+      if ((s.log || []).length) {
+        const open = document.querySelector('#lib-status details.log[open]') ? 'open' : '';
+        html += `<details class="log" ${open}><summary>${esc(t('lib_log'))}</summary><pre>${esc(s.log.join('\n'))}</pre></details>`;
+      }
+      box.innerHTML = html;
+    }
+
+    const GUIDE = {
+      ja: `
+        <h1>ガイド</h1>
+        <p class="lead">露草（あおばな）の使い方。</p>
+
+        <h2>露草とは</h2>
+        <p>自分の持っている字幕ファイルと電子書籍から、日本語の例文を検索するアプリです。すべてこのパソコンの中で動き、インターネットには何も送りません（起動時に、新しいバージョンがあるかを GitHub に確認するだけです）。検索は語の活用形や読みにも対応していて、例文はふりがな付きで表示されます。</p>
+
+        <h2>1. ファイルを入れる</h2>
+        <p>読み込まれるのは <code>.srt</code>（字幕）と <code>.epub</code>（電子書籍）だけです。<code>.ass</code>、<code>.pdf</code>、<code>.txt</code> などは無視されます。フォルダの場所は<a href="/?tab=library">ライブラリ</a>タブで確認・変更できます。</p>
+        <pre>字幕フォルダ/
+├─ 作品A/
+│   ├─ 作品A S01E01.srt
+│   └─ 作品A S01E02.srt
+└─ 作品B/
+    └─ 第1期/                  ← 作品フォルダの中なら、さらに分けてもOK
+        └─ 作品B 第01話.srt
+
+書籍フォルダ/
+├─ [著者] 書名.epub
+└─ 好きなサブフォルダ/
+    └─ [著者] 書名.epub</pre>
+        <ul>
+          <li><b>字幕は作品ごとにフォルダを作ってください。</b>一番上のフォルダ名が作品名になります。字幕フォルダの直下に置いた .srt は、作品が分からないため読み込まれません（ライブラリタブに一覧が出ます）。</li>
+          <li>話数はファイル名の <code>S01E02</code>、<code>第2話</code>、<code>- 02</code> などから読み取ります。</li>
+          <li>書籍の題名と著者は EPUB のメタデータから取ります。メタデータがない場合は、ファイル名 <code>[著者] 書名.epub</code> から取ります。</li>
+        </ul>
+
+        <h2>2. インデックスを作成する</h2>
+        <p><a href="/?tab=library">ライブラリ</a>タブで「インデックス作成」を押すと、すべての文を解析して検索用のデータベースを作ります。初回は大きなライブラリで数分かかります。2回目以降は追加・変更・削除されたファイルだけを処理します。ファイルを入れ替えたら、もう一度押してください。</p>
+
+        <h2>3. 検索する</h2>
+        <ul>
+          <li><b>語形はまとめて検索されます。</b><code>食べる</code> で「食べた」「食べて」なども見つかります。ひらがなの <code>たべる</code> でも検索できます。</li>
+          <li><b>完全一致</b> — 入力した形そのままで探します。<code>"食べて"</code> のように <code>"</code> で囲んでも同じです。</li>
+          <li><b>除外</b> — 頭に <code>-</code> を付けた語を含む文は除かれます（例: <code>食べる -肉</code>）。</li>
+          <li><b>並べ替え</b> — おすすめ（読みやすい長さ順）、時系列順、長い順、短い順、ランダム。選んだ並べ替えは次回も使われます。</li>
+          <li><b>両方 / 字幕 / 書籍</b> — サイドバーの上のボタンで、検索対象を切り替えます。これも記憶されます。</li>
+          <li><b>作品で絞り込む</b> — サイドバーの作品名を押すと、その作品の中だけを検索します。</li>
+        </ul>
+
+        <h2>例文の操作</h2>
+        <ul>
+          <li><b>★</b> お気に入りに保存。<a href="/?tab=saved">お気に入り</a>タブで見られます（このブラウザに保存されます）。</li>
+          <li><b>⋯</b> 前後の文脈を表示します。</li>
+          <li><b>ふ</b> ふりがなの表示・非表示を切り替えます。</li>
+        </ul>
+
+        <h2>メディア</h2>
+        <p><a href="/?tab=media">メディア</a>タブには、インデックス済みのすべての作品と書籍が一覧で表示されます。作品を開くと、各話・各章を最初から順に読めます。</p>
+
+        <h2>ショートカット</h2>
+        <p><span class="kbd-key">Q</span> 検索バー · <span class="kbd-key">D</span>/<span class="kbd-key">↓</span> 次へ · <span class="kbd-key">A</span>/<span class="kbd-key">↑</span> 前へ · <span class="kbd-key">C</span> 文脈 · <span class="kbd-key">S</span> お気に入り · <span class="kbd-key">F</span> ふりがな · <span class="kbd-key">?</span> ヘルプ · <span class="kbd-key">Esc</span> 閉じる</p>
+
+        <h2>表示と設定</h2>
+        <p>右上のボタンでショートカット一覧（?）、言語（日本語 / English）、テーマ（紙・霞・夜・深夜）を切り替えられます。</p>
+
+        <h2>アプリの終了</h2>
+        <p>露草は小さなウィンドウ（「露草」サーバー）で動いています。そのウィンドウを閉じると終了します。ブラウザのタブを閉じるだけでは終了しません。</p>
+      `,
+      en: `
+        <h1>Guide</h1>
+        <p class="lead">How to use Aobana (露草).</p>
+
+        <h2>What Aobana is</h2>
+        <p>An app for searching Japanese example sentences in the subtitle files and e-books you own. Everything runs on this computer, and nothing is sent to the internet (at start it only asks GitHub whether a newer version exists). Searches understand conjugations and readings, and sentences are shown with furigana.</p>
+
+        <h2>1. Add your files</h2>
+        <p>Only <code>.srt</code> (subtitles) and <code>.epub</code> (e-books) are read. <code>.ass</code>, <code>.pdf</code>, <code>.txt</code> and everything else are ignored. The <a href="/?tab=library">Library</a> tab shows where the folders are, and lets you change them.</p>
+        <pre>Subtitles folder/
+├─ Show A/
+│   ├─ Show A S01E01.srt
+│   └─ Show A S01E02.srt
+└─ Show B/
+    └─ Season 1/                ← sub-folders inside a show folder are fine
+        └─ Show B 第01話.srt
+
+Books folder/
+├─ [Author] Title.epub
+└─ any sub-folder/
+    └─ [Author] Title.epub</pre>
+        <ul>
+          <li><b>Give each show its own folder.</b> The top folder's name becomes the show's name. A .srt placed directly in the subtitles folder has no show, so it is not read (the Library tab lists any).</li>
+          <li>Episode numbers are read from file names such as <code>S01E02</code>, <code>第2話</code> or <code>- 02</code>.</li>
+          <li>A book's title and author come from the EPUB's metadata, or, when that is missing, from the file name <code>[Author] Title.epub</code>.</li>
+        </ul>
+
+        <h2>2. Build the index</h2>
+        <p>Press "Index library" in the <a href="/?tab=library">Library</a> tab. Every sentence is analysed into a search database; the first run over a large library takes a few minutes. Later runs only process files that were added, changed or removed, so run it again whenever your files change.</p>
+
+        <h2>3. Search</h2>
+        <ul>
+          <li><b>Conjugations are found together.</b> <code>食べる</code> also finds 食べた, 食べて and so on, and the reading <code>たべる</code> works too.</li>
+          <li><b>Exact</b> matches exactly what you typed. Wrapping the query in quotes (<code>"食べて"</code>) does the same.</li>
+          <li><b>Exclude</b> sentences containing a word by putting <code>-</code> in front of it (<code>食べる -肉</code>).</li>
+          <li><b>Sort</b>: recommended (easy-to-read lengths first), in order, longest, shortest, random. Your choice is remembered.</li>
+          <li><b>All / Subs / Books</b>: the buttons at the top of the sidebar choose what to search. Also remembered.</li>
+          <li><b>Filter by title</b>: click a title in the sidebar to search inside it only.</li>
+        </ul>
+
+        <h2>Sentence buttons</h2>
+        <ul>
+          <li><b>★</b> saves it to the <a href="/?tab=saved">Favorites</a> tab (stored in this browser).</li>
+          <li><b>⋯</b> shows the surrounding context.</li>
+          <li><b>ふ</b> shows or hides furigana.</li>
+        </ul>
+
+        <h2>Media</h2>
+        <p>The <a href="/?tab=media">Media</a> tab lists every indexed show and book. Open one to read its episodes or chapters in order.</p>
+
+        <h2>Keyboard shortcuts</h2>
+        <p><span class="kbd-key">Q</span> search bar · <span class="kbd-key">D</span>/<span class="kbd-key">↓</span> next · <span class="kbd-key">A</span>/<span class="kbd-key">↑</span> previous · <span class="kbd-key">C</span> context · <span class="kbd-key">S</span> favorite · <span class="kbd-key">F</span> furigana · <span class="kbd-key">?</span> help · <span class="kbd-key">Esc</span> close</p>
+
+        <h2>Appearance and settings</h2>
+        <p>The buttons at the top right show keyboard shortcuts (?), and switch language (日本語 / English) and theme (Paper, Haze, Night, Midnight).</p>
+
+        <h2>Quitting</h2>
+        <p>Aobana runs in a small window (the "露草" server). Close that window to quit; closing the browser tab alone does not stop it.</p>
+      `,
+    };
+    function initGuideTab() {
+      setTitle(t('tab_guide'));
+      document.getElementById('guide-body').innerHTML = GUIDE[LANG] +
+        `<p style="margin-top:2em;"><button class="btn" onclick="openWelcome()">${esc(t('welcome_again'))}</button></p>`;
+    }
+
+    function openWelcome() {
+      const m = document.getElementById('welcome-modal');
+      m.classList.add('open');
+      document.documentElement.style.overflow = 'hidden';
+    }
+    function closeWelcome(goGuide) {
+      store.set('welcomed', '1');
+      document.getElementById('welcome-modal').classList.remove('open');
+      document.documentElement.style.overflow = '';
+      if (goGuide) window.location.href = '/?tab=guide';
+      else checkForUpdate();
+    }
+
+    async function checkForUpdate() {
+      const boot = (document.querySelector('meta[name="aobana-boot"]') || {}).content || '';
+      if (store.get('update_seen') === boot) return;
+      for (let i = 0; i < 10; i++) {
+        let info;
+        try { info = await (await fetch('/api/update')).json(); } catch (e) { return; }
+        if (info.checked) {
+          store.set('update_seen', boot);
+          if (info.newer) openUpdate(info);
+          return;
+        }
+        await new Promise(r => setTimeout(r, 1500));
+      }
+    }
+    function openUpdate(info) {
+      const m = document.getElementById('update-modal');
+      m.querySelector('#update-body').innerHTML = t('update_body', { current: esc(info.current), latest: esc(info.latest) });
+      m.querySelector('#update-link').href = info.url;
+      m.classList.add('open');
+      document.documentElement.style.overflow = 'hidden';
+    }
+    function closeUpdate() {
+      document.getElementById('update-modal').classList.remove('open');
+      document.documentElement.style.overflow = '';
+    }
+
+    const CARET = '<svg class="dd-caret" viewBox="0 0 20 20"><path d="M5.516 7.548a.625.625 0 0 1 .884-.884l3.6 3.6 3.6-3.6a.625.625 0 1 1 .884.884l-4.042 4.042a.625.625 0 0 1-.884 0z"/></svg>';
+    function makeDropdown(el, { options, value, icon = '', title = '', onChange, left = false, labelFor }) {
+      const cur = options.find(o => o.value === value) || options[0];
+      el.classList.add('dd');
+      if (left) el.classList.add('left');
+      el.innerHTML = `
+        <button type="button" class="dd-btn" title="${esc(title)}" aria-haspopup="listbox">
+          ${icon ? `<span class="dd-icon">${icon}</span>` : ''}
+          <span class="dd-label">${labelFor ? labelFor(cur) : `${cur.pre || ''}${esc(cur.label)}`}</span>${CARET}
+        </button>
+        <div class="dd-menu" role="listbox">
+          ${options.map(o => `<div class="dd-item ${o.value === cur.value ? 'selected' : ''}" role="option" data-value="${esc(o.value)}">${o.pre || ''}<span>${esc(o.label)}</span></div>`).join('')}
+        </div>`;
+      el.querySelector('.dd-btn').addEventListener('click', e => {
+        e.stopPropagation();
+        const open = !el.classList.contains('open');
+        document.querySelectorAll('.dd.open').forEach(d => d.classList.remove('open'));
+        el.classList.toggle('open', open);
+      });
+      el.querySelectorAll('.dd-item').forEach(item => item.addEventListener('click', e => {
+        e.stopPropagation();
+        el.classList.remove('open');
+        if (item.dataset.value !== cur.value) onChange(item.dataset.value);
+      }));
+    }
+    document.addEventListener('click', e => {
+      document.querySelectorAll('.dd.open').forEach(d => d.classList.remove('open'));
+      if (!e.target.closest('.topbar')) setMenu(false);
+    });
+
+    const LABEL_STAGES = ['c-lang', 'c-theme', 'c-guide', 'c-library', 'c-media', 'c-saved', 'c-search'];
+    const TAB_ORDER = ['search', 'saved', 'media', 'library', 'guide'];
+    const SETTINGS = ['shortcuts-btn', 'lang-dd', 'theme-dd'];
+    const DRAWER_STAGE = LABEL_STAGES.length + 1;
+    const TABS_STAGE = DRAWER_STAGE + 1;
+    const LAST_STAGE = TABS_STAGE + TAB_ORDER.length;
+    window.topbarThresholds = [];
+    let topbarThresholds = window.topbarThresholds;
+    let currentTopbarStage = -1;
+
+    function applyTopbarStage(stage) {
+      const bar = document.querySelector('.topbar');
+      const tabs = bar.querySelector('.nav-tabs');
+      const menu = document.getElementById('topbar-menu');
+      const menuTabs = menu.querySelector('.menu-tabs');
+      const menuRight = menu.querySelector('.menu-right');
+      const right = bar.querySelector(':scope > .topbar-right');
+      const settingsIn = stage < DRAWER_STAGE ? 0 : stage === DRAWER_STAGE ? 2 : 3;
+      const tabsIn = Math.max(0, stage - TABS_STAGE);
+      const inDrawer = [...SETTINGS.slice(0, settingsIn), ...TAB_ORDER.slice(TAB_ORDER.length - tabsIn)];
+      bar.classList.toggle('compact', stage >= DRAWER_STAGE);
+      LABEL_STAGES.forEach((c, idx) => {
+        let on = idx < stage;
+        if (c === 'c-lang' && inDrawer.includes('lang-dd')) on = false;
+        if (c === 'c-theme' && inDrawer.includes('theme-dd')) on = false;
+        if (inDrawer.includes(c.slice(2))) on = false;
+        bar.classList.toggle(c, on);
+      });
+      TAB_ORDER.forEach(name => {
+        const a = document.querySelector(`.nav-tab[data-tab="${name}"]`);
+        if (a) (inDrawer.includes(name) ? menuTabs : tabs).appendChild(a);
+      });
+      SETTINGS.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) (inDrawer.includes(id) ? menuRight : right).appendChild(el);
+      });
+      right.classList.toggle('is-empty', settingsIn === SETTINGS.length);
+    }
+
+    function topbarGap() {
+      const bar = document.querySelector('.topbar');
+      const last = bar.querySelector('.nav-tabs').lastElementChild;
+      if (!last) return Infinity;
+      const right = bar.querySelector(':scope > .topbar-right');
+      const next = right.classList.contains('is-empty') ? document.getElementById('menu-btn') : right;
+      return next.getBoundingClientRect().left - last.getBoundingClientRect().right;
+    }
+
+    function updateTopbarThresholds() {
+      const bar = document.querySelector('.topbar');
+      if (!bar) return;
+      if (bar.getBoundingClientRect().width <= 0) return;
+      const wasSticky = bar.classList.contains('is-sticky');
+      bar.classList.remove('is-sticky');
+      const thresholds = [];
+      for (let s = 0; s < LAST_STAGE; s++) {
+        applyTopbarStage(s);
+        thresholds.push(Math.ceil(bar.getBoundingClientRect().width - topbarGap() + 8));
+      }
+      window.topbarThresholds = topbarThresholds = thresholds;
+      bar.classList.toggle('is-sticky', wasSticky);
+      applyTopbarStage(Math.max(0, currentTopbarStage));
+    }
+
+    function fitTopbar(measuredWidth) {
+      const bar = document.querySelector('.topbar');
+      if (!bar) return;
+      if (!topbarThresholds.length) updateTopbarThresholds();
+      const cs = getComputedStyle(bar);
+      const stickyOffset = -(parseFloat(cs.marginLeft) + parseFloat(cs.marginRight)) || 0;
+      const rawW = measuredWidth !== undefined ? measuredWidth : Math.round(bar.offsetWidth);
+      const w = rawW - stickyOffset;
+
+      let stage = 0;
+      while (stage < topbarThresholds.length && w < topbarThresholds[stage]) stage++;
+      applyTopbarStage(stage);
+      while (stage < LAST_STAGE && topbarGap() < 8) applyTopbarStage(++stage);
+      if (stage < DRAWER_STAGE) setMenu(false);
+      const changed = stage !== currentTopbarStage;
+      currentTopbarStage = stage;
+      if (changed) fitSidebar();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      let lastWidth = -1;
+      new ResizeObserver(entries => {
+        const bar = entries[0].target;
+        const w = entries[0].borderBoxSize ? Math.round(entries[0].borderBoxSize[0].inlineSize) : Math.round(bar.offsetWidth);
+        if (w !== lastWidth) {
+          lastWidth = w;
+          fitTopbar(w);
+        }
+      }).observe(document.querySelector('.topbar'));
+      window.addEventListener('resize', () => fitTopbar());
+    });
+    if (document.fonts) document.fonts.ready.then(() => { updateTopbarThresholds(); fitTopbar(); });
+    window.matchMedia('(max-width: 720px)').addEventListener('change', () => { updateTopbarThresholds(); fitTopbar(); });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const bar = document.querySelector('.topbar');
+      if (!bar) return;
+      const sentinel = document.createElement('div');
+      sentinel.id = 'topbar-sentinel';
+      sentinel.style.cssText = 'height:0;pointer-events:none;';
+      bar.parentElement.insertBefore(sentinel, bar);
+      new IntersectionObserver(([e]) => {
+        const stuck = !e.isIntersecting;
+        if (bar.classList.contains('is-sticky') !== stuck) {
+          bar.classList.toggle('is-sticky', stuck);
+          fitTopbar();
+        }
+      }, { threshold: 0 }).observe(sentinel);
+    });
+
+    function setMenu(open) {
+      const bar = document.querySelector('.topbar');
+      if (!bar) return;
+      bar.classList.toggle('open', open);
+      document.getElementById('menu-btn').setAttribute('aria-expanded', open ? 'true' : 'false');
+      fitSidebar();
+    }
+    function toggleMenu(e) {
+      e.stopPropagation();
+      setMenu(!document.querySelector('.topbar').classList.contains('open'));
+    }
+
+    const ICON_LANG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h9M8.5 3v2M6 5c.8 3.2 3 5.6 6 7M11 5c-.9 3.6-3.4 6.4-7 8"/><path d="M13 21l4-9 4 9M14.4 18h5.2"/></svg>';
+    const ICON_SUN = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+    const ICON_MOON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+
+    const SORT_ICONS = {
+      recommended: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 16v4M17 18h4"/>',
+      chrono: '<circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/><path d="M12 3.5v.5M20.5 12H20M12 20.5V20M3.5 12H4"/>',
+      desc: '<path d="M4 6h16M4 12h11M4 18h6"/>',
+      asc: '<path d="M4 6h6M4 12h11M4 18h16"/>',
+      random: '<path d="M3 7h3c4 0 6 10 10 10h5"/><path d="M3 17h3c1.6 0 2.9-1.6 4-3.5M13.9 9.5C15 8 16.2 7 18 7h3"/><path d="M18.5 4.5L21 7l-2.5 2.5M18.5 14.5L21 17l-2.5 2.5"/>',
+    };
+    const sortIcon = v => `<svg class="dd-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SORT_ICONS[v]}</svg>`;
+
+    function renderTopbarControls() {
+      makeDropdown(document.getElementById('lang-dd'), {
+        options: [{ value: 'ja', label: '日本語' }, { value: 'en', label: 'English' }],
+        value: LANG, icon: ICON_LANG, title: 'Language / 言語', onChange: setLang,
+        labelFor: o => `<span class="dd-text-optional">${esc(o.label)}</span>`,
+      });
+      const theme = currentTheme();
+      makeDropdown(document.getElementById('theme-dd'), {
+        options: THEMES.map(v => ({ value: v, label: t('theme_' + v), pre: `<span class="swatch ${v}"></span>` })),
+        value: theme, icon: (theme === 'paper' || theme === 'haze') ? ICON_SUN : ICON_MOON,
+        title: t('theme_label'), onChange: setTheme,
+        labelFor: o => `<span class="dd-text-optional">${esc(o.label)}</span>`,
+      });
+      updateTopbarThresholds();
+      fitTopbar();
+    }
+
+    function renderSearchControls() {
+      const seg = document.getElementById('media-seg-side');
+      if (seg) {
+        seg.innerHTML = MEDIAS.map(m => `<button type="button" class="seg-btn ${m === MEDIA ? 'active' : ''}" data-media="${m}" onclick="setMediaMode('${m}')">${esc(t('media_' + m))}</button>`).join('');
+      }
+      const sortEl = document.getElementById('sort-select');
+      if (sortEl) {
+        makeDropdown(sortEl, {
+          options: SORTS.map(v => ({ value: v, label: t('sort_' + v), pre: sortIcon(v) })),
+          value: SORT, title: t('sort_title'),
+          onChange: v => {
+            store.set('sort', v);
+            document.getElementById('sort-input').value = v;
+            document.querySelector('form.search-bar').submit();
+          },
+        });
+      }
+      document.getElementById('sort-input').value = SORT;
+      document.getElementById('media-input').value = MEDIA;
+      document.getElementById('hidden-folder').value = currentFolder || '';
+      const qInput = document.querySelector('input[name="q"]');
+      qInput.value = PARAMS.get('q') || '';
+      const exact = document.getElementById('exact-check');
+      exact.checked = PARAMS.get('exact') === 'on';
+      const chip = document.getElementById('exact-chip');
+      chip.classList.toggle('on', exact.checked);
+      exact.addEventListener('change', () => chip.classList.toggle('on', exact.checked));
+      document.querySelectorAll('.furi-btn').forEach(b => b.classList.toggle('off', document.documentElement.classList.contains('no-furigana')));
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      applyI18n();
+      renderTopbarControls();
+      document.querySelectorAll('.nav-tab').forEach(a => a.classList.toggle('active', a.dataset.tab === TAB));
+      document.querySelectorAll('[data-tab-panel]').forEach(p => { p.hidden = p.dataset.tabPanel !== TAB; });
+
+      if (TAB === 'search') {
+        if (PARAMS.get('q')) store.set('aobana_last_search', window.location.pathname + window.location.search);
+        renderSearchControls();
+        initFetch();
+        initSidebarTooltip();
+        const filter = document.getElementById('folder-filter');
+        filter.addEventListener('input', filterFolders);
+        document.getElementById('folder-list-dynamic').addEventListener('click', e => {
+          const link = e.target.closest('.folder-link[data-folder]');
+          if (link) setFolder(link.dataset.folder || null, e);
+        });
+      } else if (TAB === 'saved') {
+        initSavedTab();
+      } else if (TAB === 'media') {
+        const seg = document.getElementById('media-seg');
+        seg.innerHTML = MEDIAS.map(m => `<button type="button" class="seg-btn ${m === MEDIA_TAB_FILTER ? 'active' : ''}" data-media="${m}" onclick="setMediaTabFilter('${m}')">${esc(t('media_' + m))}</button>`).join('');
+        document.getElementById('media-filter').addEventListener('input', renderMediaList);
+        initMediaTab();
+        initSidebarTooltip();
+      } else if (TAB === 'library') {
+        initLibraryTab();
+      } else if (TAB === 'guide') {
+        initGuideTab();
+      }
+
+      if (store.get('welcomed') !== '1') openWelcome();
+      else checkForUpdate();
+    });
+
+    function initSidebarTooltip() {
+      const tooltip = document.getElementById('sidebar-tooltip');
+      if (!tooltip) return;
+
+      let tooltipTimeout = null;
+      let isTooltipActive = false;
+      let closeGraceTimeout = null;
+
+      function showTooltip(targetLink, text) {
+        tooltip.textContent = text;
+        tooltip.style.display = 'block';
+        tooltip.style.visibility = 'hidden';
+
+        const rect = targetLink.getBoundingClientRect();
+        const tipRect = tooltip.getBoundingClientRect();
+
+        let left = rect.right + 10;
+        let top = rect.top + (rect.height - tipRect.height) / 2;
+
+        if (left + tipRect.width > window.innerWidth - 12) {
+          left = Math.max(12, Math.min(rect.left, window.innerWidth - tipRect.width - 12));
+          top = rect.bottom + 6;
+          if (top + tipRect.height > window.innerHeight - 12) {
+            top = rect.top - tipRect.height - 6;
+          }
+        }
+        if (top < 12) top = 12;
+        if (top + tipRect.height > window.innerHeight - 12) {
+          top = window.innerHeight - tipRect.height - 12;
+        }
+
+        tooltip.style.left = `${left}px`;
+        tooltip.style.top = `${top}px`;
+        tooltip.style.visibility = 'visible';
+        tooltip.classList.add('visible');
+        isTooltipActive = true;
+      }
+
+      function hideTooltip() {
+        clearTimeout(tooltipTimeout);
+        tooltip.classList.remove('visible');
+        tooltip.style.display = 'none';
+      }
+
+      function scheduleHide() {
+        clearTimeout(tooltipTimeout);
+        hideTooltip();
+        clearTimeout(closeGraceTimeout);
+        closeGraceTimeout = setTimeout(() => { isTooltipActive = false; }, 200);
+      }
+
+      const sidebarEl = document.querySelector('.sidebar');
+      if (sidebarEl) {
+        sidebarEl.addEventListener('mouseover', (e) => {
+          const link = e.target.closest('.folder-link');
+          if (!link) { scheduleHide(); return; }
+          const span = link.querySelector('.folder-name, span:first-child');
+          if (!span) { scheduleHide(); return; }
+
+          if (span.scrollWidth - span.clientWidth > 1) {
+            const text = span.textContent.trim();
+            clearTimeout(tooltipTimeout);
+            clearTimeout(closeGraceTimeout);
+            if (isTooltipActive) {
+              showTooltip(link, text);
+            } else {
+              tooltipTimeout = setTimeout(() => { showTooltip(link, text); }, 120);
+            }
+          } else {
+            scheduleHide();
+          }
+        });
+
+        sidebarEl.addEventListener('mouseout', (e) => {
+          const link = e.target.closest('.folder-link');
+          if (link) {
+            if (e.relatedTarget && link.contains(e.relatedTarget)) return;
+            scheduleHide();
+          }
+        });
+
+        sidebarEl.addEventListener('scroll', () => { hideTooltip(); isTooltipActive = false; }, { passive: true });
+      }
+
+      document.addEventListener('mouseover', (e) => {
+        const row = e.target.closest('.media-row');
+        if (!row) return;
+        const el = e.target.closest('.media-name, .media-author');
+        if (el && el.scrollWidth - el.clientWidth > 1) {
+          clearTimeout(tooltipTimeout);
+          clearTimeout(closeGraceTimeout);
+          if (isTooltipActive) showTooltip(el, el.textContent.trim());
+          else tooltipTimeout = setTimeout(() => { showTooltip(el, el.textContent.trim()); }, 120);
+        } else {
+          scheduleHide();
+        }
+      });
+      document.addEventListener('mouseout', (e) => {
+        const el = e.target.closest('.media-row .media-name, .media-row .media-author');
+        if (el && !(e.relatedTarget && el.contains(e.relatedTarget))) scheduleHide();
+      });
+
+      window.addEventListener('scroll', () => { hideTooltip(); isTooltipActive = false; }, { passive: true, capture: true });
+      document.addEventListener('mousedown', () => { hideTooltip(); isTooltipActive = false; });
+    }
+
+    let isComposing = false;
+    let justConfirmed = false;
+    let activeCardIndex = -1;
+    let lastNavTime = 0;
+
+    function getVisibleCards() {
+      return Array.from(document.querySelectorAll('#results .card, #results .episode-card'));
+    }
+
+    function updateActiveCard(newIndex) {
+      const cards = getVisibleCards();
+      if (cards.length === 0) return;
+      cards.forEach(c => c.classList.remove('keyboard-active'));
+      if (newIndex < 0) newIndex = 0;
+      if (newIndex >= cards.length) newIndex = cards.length - 1;
+      activeCardIndex = newIndex;
+      const activeCard = cards[activeCardIndex];
+      if (activeCard) {
+        activeCard.classList.add('keyboard-active');
+        activeCard.scrollIntoView({ behavior: 'auto', block: 'nearest' });
+      }
+    }
+
+    function toggleShortcutsModal() {
+      const modal = document.getElementById('shortcuts-modal');
+      if (modal) {
+        const isOpen = modal.classList.toggle('open');
+        document.documentElement.style.overflow = isOpen ? 'hidden' : '';
+      }
+    }
+
+    function handleSearchTabClick(e) {
+      if (TAB === 'search') {
+        e.preventDefault();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+      const last = store.get('aobana_last_search');
+      if (last) {
+        e.preventDefault();
+        window.location.href = last;
+      }
+    }
+
+    function handleSearchSubmit(e, form) {
+      if (isComposing || justConfirmed) {
+        if (e && e.preventDefault) e.preventDefault();
+        return false;
+      }
+      const qInput = form.querySelector('input[name="q"]');
+      const exactCheck = form.querySelector('input[name="exact"]');
+      let val = qInput.value.trim();
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith('“') && val.endsWith('”')) || (val.startsWith('”') && val.endsWith('”'))) {
+        if (val.length > 2) {
+          qInput.value = val.substring(1, val.length - 1);
+          exactCheck.checked = true;
+        }
+      }
+      const folderInput = document.getElementById('hidden-folder');
+      if (folderInput && !folderInput.value) folderInput.disabled = true;
+
+      const qVal = qInput.value.trim();
+      if (qVal) {
+        const p = new URLSearchParams();
+        p.set('q', qVal);
+        if (exactCheck && exactCheck.checked) p.set('exact', 'on');
+        if (SORT) p.set('sort', SORT);
+        if (MEDIA && MEDIA !== 'all') p.set('media', MEDIA);
+        if (folderInput && !folderInput.disabled && folderInput.value) p.set('folder', folderInput.value);
+        const searchUrl = '/?' + p.toString();
+        store.set('aobana_last_search', searchUrl);
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const qInput = document.querySelector('input[name="q"]');
+      if (qInput) {
+        qInput.addEventListener('compositionstart', () => {
+          isComposing = true;
+        });
+        qInput.addEventListener('compositionend', () => {
+          isComposing = false;
+          justConfirmed = true;
+          setTimeout(() => { justConfirmed = false; }, 60);
+        });
+        qInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            if (e.isComposing || e.keyCode === 229 || isComposing || justConfirmed) {
+              e.preventDefault();
+              return false;
+            }
+          }
+        });
+      }
+    });
+
+    document.addEventListener('keydown', function(e) {
+      const activeTag = document.activeElement ? document.activeElement.tagName : '';
+      const isInputActive = activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT';
+
+      if ((e.key === '?' || (e.shiftKey && (e.code === 'Slash' || e.key === '/'))) && !isInputActive && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        e.preventDefault();
+        toggleShortcutsModal();
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        const modal = document.getElementById('shortcuts-modal');
+        if (modal && modal.classList.contains('open')) { toggleShortcutsModal(); return; }
+        const welcome = document.getElementById('welcome-modal');
+        if (welcome && welcome.classList.contains('open')) { closeWelcome(false); return; }
+        document.querySelectorAll('.dd.open').forEach(d => d.classList.remove('open'));
+        setMenu(false);
+      }
+
+      if (e.ctrlKey || e.altKey || e.metaKey) {
+        return;
+      }
+
+      if ((e.key === 'q' || e.key === 'Q' || e.code === 'KeyQ') && !isInputActive && !e.shiftKey) {
+        const qInput = document.querySelector('input[name="q"]');
+        if (qInput && qInput.offsetParent !== null) {
+          e.preventDefault();
+          qInput.focus();
+          qInput.select();
+        }
+        return;
+      }
+
+      if (!isInputActive) {
+        const modal = document.getElementById('shortcuts-modal');
+        if (modal && modal.classList.contains('open')) return;
+
+        if ((e.key === 'f' || e.key === 'F') && !e.shiftKey) {
+          e.preventDefault();
+          toggleFurigana();
+          return;
+        }
+
+        const now = Date.now();
+        const isNavKey = ((e.key === 'a' || e.key === 'A') && !e.shiftKey) || e.key === 'ArrowUp' ||
+                         ((e.key === 'd' || e.key === 'D') && !e.shiftKey) || e.key === 'ArrowDown';
+        if (isNavKey && e.repeat && (now - lastNavTime < 65)) {
+          e.preventDefault();
+          return;
+        }
+
+        if (((e.key === 'd' || e.key === 'D') && !e.shiftKey) || e.key === 'ArrowDown') {
+          e.preventDefault();
+          lastNavTime = now;
+          updateActiveCard(activeCardIndex + 1);
+        } else if (((e.key === 'a' || e.key === 'A') && !e.shiftKey) || e.key === 'ArrowUp') {
+          e.preventDefault();
+          lastNavTime = now;
+          updateActiveCard(activeCardIndex - 1);
+        } else if ((e.key === 'c' || e.key === 'C') && !e.shiftKey) {
+          const cards = getVisibleCards();
+          if (activeCardIndex >= 0 && activeCardIndex < cards.length) {
+            const card = cards[activeCardIndex];
+            const ctxBtn = card.querySelector('button[onclick*="toggleContext"]');
+            if (ctxBtn) { e.preventDefault(); ctxBtn.click(); }
+            const epHeader = card.querySelector('.episode-header');
+            if (epHeader) { e.preventDefault(); epHeader.click(); }
+          }
+        } else if ((e.key === 's' || e.key === 'S') && !e.shiftKey) {
+          const cards = getVisibleCards();
+          if (activeCardIndex >= 0 && activeCardIndex < cards.length) {
+            const card = cards[activeCardIndex];
+            const starBtn = card.querySelector('button[onclick*="toggleSave"]');
+            if (starBtn) { e.preventDefault(); starBtn.click(); }
+          }
+        }
+      }
+    });
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" draggable="false" onclick="store.del('aobana_last_search'); store.del('aobana_last_media')">
+      <img src="/static/aobana.svg" alt="" draggable="false">
+      <span class="brand-name"><ruby>露草<rt>あおばな</rt></ruby></span>
+    </a>
+    <nav class="nav-tabs">
+      <a class="nav-tab" data-tab="search" href="/" draggable="false" onclick="handleSearchTabClick(event)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+        <span data-i18n="tab_search">検索</span>
+      </a>
+      <a class="nav-tab" data-tab="saved" href="/?tab=saved" draggable="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>
+        <span data-i18n="tab_saved">お気に入り</span>
+      </a>
+      <a class="nav-tab" data-tab="media" href="/?tab=media" draggable="false" onclick="handleMediaTabClick(event)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5M16 4v5"/></svg>
+        <span data-i18n="tab_media">メディア</span>
+      </a>
+      <a class="nav-tab" data-tab="library" href="/?tab=library" draggable="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 11v5M9.5 13.5L12 16l2.5-2.5"/></svg>
+        <span data-i18n="tab_library">ライブラリ</span>
+      </a>
+      <a class="nav-tab" data-tab="guide" href="/?tab=guide" draggable="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/></svg>
+        <span data-i18n="tab_guide">ガイド</span>
+      </a>
+    </nav>
+    <div class="topbar-right">
+      <button type="button" id="shortcuts-btn" class="dd-btn top-btn" onclick="toggleShortcutsModal()" data-i18n-title="shortcuts" title="ショートカット (?)" aria-label="ショートカット (?)">
+        <span class="dd-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6.5 10h.01M10 10h.01M14 10h.01M17.5 10h.01M8 14h8"/></svg></span>
+      </button>
+      <div id="lang-dd"></div>
+      <div id="theme-dd"></div>
+    </div>
+    <button type="button" class="menu-btn" id="menu-btn" onclick="toggleMenu(event)" aria-expanded="false" aria-controls="topbar-menu" data-i18n-title="menu" title="メニュー">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <div class="topbar-menu" id="topbar-menu"><nav class="menu-tabs"></nav><div class="topbar-right menu-right"></div></div>
+  </header>
+
+  <div class="flex-row" data-tab-panel="search">
+    <div class="sidebar">
+      <div class="side-controls">
+        <div class="seg" id="media-seg-side"></div>
+        <div class="side-row">
+          <input id="folder-filter" class="folder-filter" type="text" data-i18n-placeholder="filter_folders" placeholder="作品を検索" spellcheck="false" autocomplete="off">
+          <button type="button" class="sq-btn furi-btn" onclick="toggleFurigana()" data-i18n-title="furigana" title="ふりがな">ふ</button>
+        </div>
+      </div>
+      <ul class="folder-list" id="folder-list-dynamic">
+      </ul>
+    </div>
+    <div class="main-content">
+      <form method="GET" class="search-bar" autocomplete="off" action="/" onsubmit="handleSearchSubmit(event, this)">
+        <input type="hidden" name="folder" id="hidden-folder" value="">
+        <div class="search-input-wrap">
+          <input name="q" class="search-input" data-i18n-placeholder="placeholder" placeholder="検索" value="" autofocus autocomplete="off" spellcheck="false" />
+          <span class="search-btn-box">
+            <button type="submit" class="search-btn" aria-label="search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+            </button>
+          </span>
+        </div>
+        <div class="search-options">
+          <label class="exact-chip" id="exact-chip" data-i18n-title="exact_title">
+            <input type="checkbox" name="exact" id="exact-check">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>
+            <span data-i18n="exact">完全一致</span>
+          </label>
+          <input type="hidden" name="media" id="media-input" value="all">
+          <div class="sort-dd" id="sort-select"></div>
+          <input type="hidden" name="sort" id="sort-input" value="recommended">
+        </div>
+      </form>
+
+      <div class="filter-note" id="filter-note" hidden></div>
+      <div id="history-state"></div>
+      <div class="panel cta" id="empty-library" hidden>
+        <img src="/static/aobana.svg" alt="">
+        <h2 data-i18n="empty_title">ライブラリが空です</h2>
+        <p data-i18n="empty_body"></p>
+        <a class="btn primary" href="/?tab=library" data-i18n="empty_btn">ライブラリを開く</a>
+      </div>
+      <div id="main-loading">
+        <div class="spinner"></div>
+        <span data-i18n="searching">データベースを検索中...</span>
+      </div>
+      <div id="empty-state" data-i18n="no_results">一致する結果が見つかりませんでした。</div>
+      <div id="results"></div>
+    </div>
+  </div>
+
+  <div class="page" data-tab-panel="saved" hidden>
+    <div class="media-detail-head" id="saved-head">
+      <h1 data-i18n="tab_saved">お気に入り</h1>
+      <div class="muted" id="saved-meta"></div>
+    </div>
+  </div>
+
+  <div class="page" data-tab-panel="media" hidden>
+    <div id="media-body">
+      <div class="media-toolbar">
+        <div class="seg" id="media-seg"></div>
+        <input id="media-filter" class="folder-filter" type="text" data-i18n-placeholder="media_filter" placeholder="" spellcheck="false" autocomplete="off">
+      </div>
+      <div class="media-summary" id="media-summary"></div>
+      <div class="media-list" id="media-list"></div>
+    </div>
+    <div class="panel cta" id="media-empty" hidden>
+      <img src="/static/aobana.svg" alt="">
+      <h2 data-i18n="empty_title">ライブラリが空です</h2>
+      <p data-i18n="empty_body"></p>
+      <a class="btn primary" href="/?tab=library" data-i18n="empty_btn">ライブラリを開く</a>
+    </div>
+    <div class="media-detail-head" id="media-detail" hidden></div>
+  </div>
+
+  <div class="page doc" data-tab-panel="library" hidden>
+    <div class="panel">
+      <h1 data-i18n="lib_title">ライブラリ</h1>
+      <p class="lead" data-i18n="lib_lead"></p>
+      <div class="steps">
+        <div class="step"><div class="step-n">1</div><div class="step-t" data-i18n="lib_step1_t"></div><div class="step-d" data-i18n="lib_step1_d"></div></div>
+        <div class="step"><div class="step-n">2</div><div class="step-t" data-i18n="lib_step2_t"></div><div class="step-d" data-i18n="lib_step2_d"></div></div>
+        <div class="step"><div class="step-n">3</div><div class="step-t" data-i18n="lib_step3_t"></div><div class="step-d" data-i18n="lib_step3_d"></div></div>
+      </div>
+      <div class="lib-grid" id="lib-folders"></div>
+      <div class="notice" id="lib-note" hidden></div>
+      <button class="btn primary" id="lib-run" onclick="runIndex()" style="height:42px; padding:0 22px; font-size:1em;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+        <span data-i18n="lib_run">インデックス作成</span>
+      </button>
+      <div id="lib-status"></div>
+      <div class="lib-card" id="lib-data" style="margin-top:1.5em;"></div>
+      <div class="lib-card" id="lib-favorites" style="margin-top:1.5em;">
+        <h3 data-i18n="fav_title">お気に入りの書き出し・読み込み</h3>
+        <p class="muted" data-i18n="fav_lead" style="margin:0 0 0.8em; font-size:0.9em;"></p>
+        <div class="btns">
+          <button class="btn" onclick="exportFavorites()" data-i18n="fav_export">書き出す</button>
+          <button class="btn" onclick="document.getElementById('fav-file').click()" data-i18n="fav_import">読み込む</button>
+          <input type="file" id="fav-file" accept=".json,application/json" hidden onchange="importFavorites(this)">
+        </div>
+        <div class="notice" id="fav-note" hidden style="margin:0.8em 0 0;"></div>
+      </div>
+      <div class="lib-card" id="lib-port" style="margin-top:1em;">
+        <h3 data-i18n="port_title">ポート</h3>
+        <p class="muted" id="port-lead" style="margin:0 0 0.8em; font-size:0.9em;"></p>
+        <div class="btns">
+          <input type="number" id="port-input" min="1024" max="65535">
+          <button class="btn" onclick="savePort()" data-i18n="port_save">保存</button>
+        </div>
+        <div class="notice" id="port-note" hidden style="margin:0.8em 0 0;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page doc" data-tab-panel="guide" hidden>
+    <div class="panel" id="guide-body"></div>
+  </div>
+
+  <div class="modal-overlay" id="shortcuts-modal" onclick="if(event.target===this)toggleShortcutsModal()">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" data-i18n="sc_title">ショートカット</h3>
+        <button type="button" class="modal-close" onclick="toggleShortcutsModal()" data-i18n-title="close" title="閉じる">✕</button>
+      </div>
+      <div class="shortcut-row"><span data-i18n="sc_focus"></span><div class="shortcut-keys"><span class="kbd-key">Q</span></div></div>
+      <div class="shortcut-row"><span data-i18n="sc_next"></span><div class="shortcut-keys"><span class="kbd-key">D</span> / <span class="kbd-key">↓</span></div></div>
+      <div class="shortcut-row"><span data-i18n="sc_prev"></span><div class="shortcut-keys"><span class="kbd-key">A</span> / <span class="kbd-key">↑</span></div></div>
+      <div class="shortcut-row"><span data-i18n="sc_context"></span><div class="shortcut-keys"><span class="kbd-key">C</span></div></div>
+      <div class="shortcut-row"><span data-i18n="sc_save"></span><div class="shortcut-keys"><span class="kbd-key">S</span></div></div>
+      <div class="shortcut-row"><span data-i18n="sc_furigana"></span><div class="shortcut-keys"><span class="kbd-key">F</span></div></div>
+      <div class="shortcut-row"><span data-i18n="sc_help"></span><div class="shortcut-keys"><span class="kbd-key">?</span></div></div>
+      <div class="shortcut-row"><span data-i18n="sc_close"></span><div class="shortcut-keys"><span class="kbd-key">Esc</span></div></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="welcome-modal">
+    <div class="modal-card wide welcome">
+      <img src="/static/aobana.svg" alt="">
+      <h2 data-i18n="welcome_title">露草へようこそ</h2>
+      <p data-i18n="welcome_body"></p>
+      <ol>
+        <li data-i18n-html="welcome_s1"></li>
+        <li data-i18n-html="welcome_s2"></li>
+        <li data-i18n-html="welcome_s3"></li>
+      </ol>
+      <p data-i18n-html="welcome_more"></p>
+      <div class="btns">
+        <button class="btn" onclick="closeWelcome(true)" data-i18n="welcome_guide">ガイドを読む</button>
+        <button class="btn primary" onclick="closeWelcome(false)" data-i18n="welcome_start">はじめる</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="update-modal">
+    <div class="modal-card welcome">
+      <img src="/static/aobana.svg" alt="">
+      <h2 data-i18n="update_title">新しいバージョンがあります</h2>
+      <p id="update-body"></p>
+      <p data-i18n="update_more">GitHub のリリースページからダウンロードできます。</p>
+      <div class="btns">
+        <button class="btn" onclick="closeUpdate()" data-i18n="update_later">あとで</button>
+        <a class="btn primary" id="update-link" href="https://github.com/Wyzmic/aobana/releases/latest" target="_blank" rel="noopener" onclick="closeUpdate()" data-i18n="update_get">リリースページを開く</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="sidebar-tooltip" class="sidebar-tooltip" role="tooltip"></div>
+</body>
+</html>
