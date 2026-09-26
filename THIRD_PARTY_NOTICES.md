@@ -1,13 +1,15 @@
 # Third-party notices
 
 露草 / Aobana is licensed under the GNU General Public License v3.0 (`LICENSE`). The Windows
-installer also ships the software below, each under its own license. The full license text of
-every package is installed with it: `python\LICENSE.txt` for Python, and
-`python\Lib\site-packages\<package>.dist-info\` for the rest.
+installer and the macOS and Linux downloads also ship the software below, each under its own
+license. The full license text of every package is installed with it: `python\LICENSE.txt` for
+Python on Windows, `python/lib/python3.14/LICENSE.txt` on macOS and Linux, and each package's
+`<package>.dist-info` folder under `site-packages` for the rest.
 
 | Component | Version | License | Copyright |
 |---|---|---|---|
 | Python (embeddable package) | 3.14.7 | PSF License 2.0 | © 2001 Python Software Foundation; includes OpenSSL, libffi, SQLite, zlib and others, listed in `python\LICENSE.txt` |
+| Python (python-build-standalone, macOS and Linux) | 3.14.7 | PSF License 2.0 | © 2001 Python Software Foundation; built by Astral's python-build-standalone (BSD-3-Clause); includes OpenSSL, libffi, SQLite, zlib and others |
 | SudachiPy | 0.6.11 | Apache License 2.0 | © Works Applications Co., Ltd. |
 | SudachiDict-core | 20260723 | Apache License 2.0 | © Works Applications Co., Ltd. |
 | Flask | 3.1.3 | BSD-3-Clause | © 2010 Pallets |

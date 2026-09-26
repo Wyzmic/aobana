@@ -1,0 +1,87 @@
+name: Build macOS and Linux
+
+on:
+  release:
+    types: [published]
+  push:
+    branches: [ci-unix]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Build
+        run: python release/build_unix.py mac
+      - name: Test the app inside the disk image
+        run: |
+          MNT="$(mktemp -d)"
+          hdiutil attach release/dist/*.dmg -mountpoint "$MNT" -nobrowse -readonly
+          APP="$MNT/Aobana.app/Contents"
+          python release/unix/smoke.py "$APP/Resources/app/python/bin/python3" "$APP/Resources/app/launcher.py"
+          codesign --verify --deep --strict "$MNT/Aobana.app"
+          test -x "$APP/MacOS/Aobana" && test -x "$APP/Resources/Aobana.command"
+          hdiutil detach "$MNT"
+      - name: Checksums
+        run: cd release/dist && shasum -a 256 *.dmg | tee SHA256SUMS-macos.txt
+      - uses: actions/upload-artifact@v5
+        with:
+          name: aobana-macos
+          path: release/dist/*
+      - name: Attach to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" release/dist/*.dmg release/dist/SHA256SUMS-macos.txt --clobber
+
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Build
+        run: python release/build_unix.py linux
+      - name: Test the unpacked tar.gz
+        run: python release/unix/smoke.py release/build/linux/Aobana-*-linux-x86_64/aobana
+      - name: Test the AppImage (mounted with FUSE; the runtime needs no libfuse2)
+        run: |
+          chmod +x release/dist/*.AppImage
+          python release/unix/smoke.py release/dist/*.AppImage
+      - name: Test on Ubuntu 24.04 and Fedora (no FUSE, no libfuse2)
+        run: |
+          cat > /tmp/in-container.sh <<'EOF'
+          set -e
+          cd /w
+          echo "== tar.gz: install.sh, then the installed command"
+          rm -rf /tmp/t && mkdir /tmp/t && tar -xzf release/dist/*.tar.gz -C /tmp/t
+          /tmp/t/Aobana-*/install.sh
+          test -f "$HOME/.local/share/applications/aobana.desktop"
+          python3 release/unix/smoke.py "$HOME/.local/bin/aobana"
+          echo "== AppImage without FUSE: it has to fall back to extract-and-run"
+          APPIMAGE_EXTRACT_AND_RUN=1 python3 release/unix/smoke.py release/dist/*.AppImage
+          echo "== uninstall.sh"
+          "$HOME/.local/share/aobana-app/uninstall.sh"
+          test ! -e "$HOME/.local/bin/aobana"
+          EOF
+          docker run --rm -v "$PWD:/w" -v /tmp/in-container.sh:/tmp/in-container.sh ubuntu:24.04 bash -c "apt-get update >/dev/null && apt-get install -y python3 >/dev/null && bash /tmp/in-container.sh"
+          docker run --rm -v "$PWD:/w" -v /tmp/in-container.sh:/tmp/in-container.sh fedora:latest bash -c "dnf install -y python3 findutils >/dev/null && bash /tmp/in-container.sh"
+      - name: Checksums
+        run: cd release/dist && sha256sum *.AppImage *.tar.gz | tee SHA256SUMS-linux.txt
+      - uses: actions/upload-artifact@v5
+        with:
+          name: aobana-linux
+          path: release/dist/*
+      - name: Attach to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" release/dist/*.AppImage release/dist/*.tar.gz release/dist/SHA256SUMS-linux.txt --clobber

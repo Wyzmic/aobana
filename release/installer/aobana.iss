@@ -48,8 +48,8 @@ en.MediaCaption=Media folders
 ja.MediaCaption=字幕と書籍のフォルダ
 en.MediaDescription=Where are your subtitles and books?
 ja.MediaDescription=字幕と書籍をどこに置きますか？
-en.MediaText=Aobana reads .srt subtitles and .epub books from these two folders. Keep the suggestions to create two new empty folders, or click Browse to use folders you already have. If you only have one kind, leave the other empty. You can change both later in the Library tab.%n%nInside the subtitles folder, give each show a folder of its own.
-ja.MediaText=Aobana は、この 2 つのフォルダにある字幕（.srt）と書籍（.epub）を読み込みます。このままにすると新しい空のフォルダを作ります。既にあるフォルダを使う場合は「参照」から選んでください。片方しかない場合は、もう一方を空欄にしてください。どちらも後からライブラリタブで変更できます。%n%n字幕フォルダの中は、作品ごとにフォルダを分けてください。
+en.MediaText=Aobana reads .srt / .ass subtitles and .epub books from these two folders. Keep the suggestions to create two new empty folders, or click Browse to use folders you already have. If you only have one kind, leave the other empty. You can change both later in the Library tab.%n%nInside the subtitles folder, give each show a folder of its own.
+ja.MediaText=Aobana は、この 2 つのフォルダにある字幕（.srt・.ass）と書籍（.epub）を読み込みます。このままにすると新しい空のフォルダを作ります。既にあるフォルダを使う場合は「参照」から選んでください。片方しかない場合は、もう一方を空欄にしてください。どちらも後からライブラリタブで変更できます。%n%n字幕フォルダの中は、作品ごとにフォルダを分けてください。
 en.MediaTextExisting=These are the folders Aobana uses now. Keep them, or click Browse to choose others. If you only have one kind, leave the other empty. You can change both later in the Library tab.%n%nInside the subtitles folder, give each show a folder of its own.
 ja.MediaTextExisting=Aobana が現在使っているフォルダです。このままにするか、「参照」から別のフォルダを選んでください。片方しかない場合は、もう一方を空欄にしてください。どちらも後からライブラリタブで変更できます。%n%n字幕フォルダの中は、作品ごとにフォルダを分けてください。
 en.MediaSubs=Subtitles folder:
@@ -76,8 +76,8 @@ en.MediaSame=The subtitles folder and the books folder must be two different fol
 ja.MediaSame=字幕フォルダと書籍フォルダには、別々のフォルダを指定してください。
 en.FinishedMedia=Subtitles folder: %1%nBooks folder: %2
 ja.FinishedMedia=字幕フォルダ: %1%n書籍フォルダ: %2
-en.FinishedMediaPerUser=Subtitles and books: each account gets its own Documents\Aobana\字幕 and \書籍 when it first starts Aobana.
-ja.FinishedMediaPerUser=字幕と書籍: 各アカウントの初回起動時に、そのアカウントの ドキュメント\Aobana\字幕 と \書籍 を作ります。
+en.FinishedMediaPerUser=Subtitles and books: each account gets its own Documents\Aobana\Subtitles and \Books when it first starts Aobana.
+ja.FinishedMediaPerUser=字幕と書籍: 各アカウントの初回起動時に、そのアカウントの ドキュメント\Aobana\Subtitles と \Books を作ります。
 en.FinishedText=Aobana is installed.%n%n%1%nIndex: %2%nSettings: %4%3
 ja.FinishedText=Aobana のインストールが完了しました。%n%n%1%nインデックス: %2%n設定: %4%3
 en.DbCaption=Databases
@@ -204,10 +204,26 @@ begin
   Result := CompareText(RemoveBackslashUnlessRoot(Trim(A)), RemoveBackslashUnlessRoot(Trim(B))) = 0;
 end;
 
+function IsDefaultMedia(Path: String; Index: Integer): Boolean;
+begin
+  if Index = 0 then
+    Result := SameFolder(Path, DefaultMedia('Subtitles')) or SameFolder(Path, DefaultMedia('字幕'))
+  else
+    Result := SameFolder(Path, DefaultMedia('Books')) or SameFolder(Path, DefaultMedia('書籍'));
+end;
+
+function NewDefaultName(Path: String; Index: Integer): String;
+begin
+  Result := Path;
+  if (Index = 0) and SameFolder(Path, DefaultMedia('字幕')) then
+    Result := DefaultMedia('Subtitles');
+  if (Index = 1) and SameFolder(Path, DefaultMedia('書籍')) then
+    Result := DefaultMedia('Books');
+end;
+
 function KeptDefaults(): Boolean;
 begin
-  Result := SameFolder(MediaPage.Values[0], DefaultMedia('字幕')) and
-            SameFolder(MediaPage.Values[1], DefaultMedia('書籍'));
+  Result := IsDefaultMedia(MediaPage.Values[0], 0) and IsDefaultMedia(MediaPage.Values[1], 1);
 end;
 
 function FoldersChanged(): Boolean;
@@ -586,9 +602,11 @@ begin
     FromExisting := ReadFolders(OldMarker, S, B);
   if not FromExisting then
   begin
-    S := DefaultMedia('字幕');
-    B := DefaultMedia('書籍');
+    S := DefaultMedia('Subtitles');
+    B := DefaultMedia('Books');
   end;
+  S := NewDefaultName(S, 0);
+  B := NewDefaultName(B, 1);
   if not (JsonField(Cfg, 'port', P, IsStr) and not IsStr) then
     if not (JsonField(OldMarker, 'port', P, IsStr) and not IsStr) then
       P := '5000';
@@ -892,15 +910,15 @@ begin
   if not ReadFolders(Cfg, S, B) then
     if not ReadFolders(Marker, S, B) then
     begin
-      S := DefaultMedia('字幕');
-      B := DefaultMedia('書籍');
+      S := DefaultMedia('Subtitles');
+      B := DefaultMedia('Books');
     end;
   USubs := RemoveBackslashUnlessRoot(Trim(S));
   UBooks := RemoveBackslashUnlessRoot(Trim(B));
   UOffer[0] := FileExists(UStore + '\config.json') or DirExists(UStore + '\logs');
   UOffer[1] := SameFolder(UDb, UStore) and HasIndex(UDb);
-  UOffer[2] := SameFolder(USubs, DefaultMedia('字幕')) and DirExists(USubs);
-  UOffer[3] := SameFolder(UBooks, DefaultMedia('書籍')) and DirExists(UBooks);
+  UOffer[2] := IsDefaultMedia(USubs, 0) and DirExists(USubs);
+  UOffer[3] := IsDefaultMedia(UBooks, 1) and DirExists(UBooks);
   Log('Uninstall data: store=' + UStore + ' db=' + UDb + ' subs=' + USubs + ' books=' + UBooks);
 end;
 

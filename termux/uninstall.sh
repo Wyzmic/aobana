@@ -8,7 +8,7 @@ AOBANA_DIR="${AOBANA_DIR:-/storage/emulated/0/Aobana}"
 DISTRO="aobana"
 PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
 PD_DIR="$PREFIX/var/lib/proot-distro"
-PHONE_FILES="app.py engine.py utils.py paths.py library.py indexer.py epub_indexer.py index.html
+PHONE_FILES="app.py engine.py utils.py paths.py library.py analyser.py indexer.py epub_indexer.py index.html
 requirements.txt LICENSE THIRD_PARTY_NOTICES.md data/ruby static"
 OLD_CLONE_FILES=".git .gitattributes .gitignore assets release termux Aobana.bat aobana.sh
 launcher.py README.md README.ja.md CHANGELOG.md"

@@ -1,3 +1,8 @@
 # Shell scripts run on Linux and Android: LF, whatever the checkout platform.
 *.sh text eol=lf
 *.bat text eol=crlf
+*.desktop text eol=lf
+*.plist text eol=lf
+*.yml text eol=lf
+*.icns binary
+*.png binary

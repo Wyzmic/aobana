@@ -42,7 +42,7 @@ CSC = r"C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 ISCC = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Inno Setup 7", "ISCC.exe")
 
 APP_FILES = [
-    "app.py", "engine.py", "utils.py", "paths.py", "library.py", "indexer.py", "epub_indexer.py",
+    "app.py", "engine.py", "utils.py", "paths.py", "library.py", "analyser.py", "indexer.py", "epub_indexer.py",
     "index.html", "launcher.py", "Aobana.bat", "aobana.sh", "requirements.txt",
     "data/ruby/ruby_decisions.tsv", "data/ruby/ruby_dict_merge.tsv", "data/ruby/ruby_whole.tsv",
     "data/ruby/ruby_trim.tsv",
@@ -60,7 +60,11 @@ PUBLIC_FILES = ["README.md", "README.ja.md", "LICENSE", "THIRD_PARTY_NOTICES.md"
 PUBLIC_ASSETS = [f"{view}.{lang}.png" for view in ("search-night", "search-haze", "media-haze")
                  for lang in ("en", "ja")]
 REPO_FILES = ["termux/install.sh", "termux/aobana-shortcut.sh", "termux/uninstall.sh"]
-BUILD_FILES = ["build.py", "launcher/Aobana.cs", "launcher/make_icon.py", "installer/aobana.iss"]
+BUILD_FILES = ["build.py", "launcher/Aobana.cs", "launcher/make_icon.py", "installer/aobana.iss",
+               "build_unix.py", "unix/aobana-mac.sh", "unix/aobana-command.sh", "unix/aobana-run.sh",
+               "unix/install.sh", "unix/uninstall.sh", "unix/aobana.desktop", "unix/Info.plist",
+               "unix/aobana.png", "unix/aobana.icns", "unix/smoke.py"]
+WORKFLOWS = {"github/build.yml": ".github/workflows/build.yml"}
 
 
 def step(msg):
@@ -104,7 +108,7 @@ def check_whitelist():
                     sys.exit(f"build: {rel} is not in APP_FILES - add it, or say why it stays out")
 
 
-KEEP_MODULE_DOC = ("build.py", "make_icon.py")
+KEEP_MODULE_DOC = ("build.py", "make_icon.py", "build_unix.py", "smoke.py")
 
 
 def _eol(line):
@@ -330,6 +334,7 @@ def _strip_tsv(text, name=""):
 
 STRIPPERS = {".py": _strip_py, ".html": _strip_html, ".svg": _strip_svg, ".cs": _strip_cs,
              ".sh": _strip_hash, ".txt": _strip_hash, ".iss": _strip_iss, ".tsv": _strip_tsv,
+             ".yml": _strip_hash,
              ".bat": lambda t, name="": _strip_hash(t, name, marker="REM", keep="REM:")}
 DEV_NOTE = re.compile(r"§|docs/|task-\d|\b20\d\d-\d\d-\d\d\b|\bthe user\b|verify\.py|measure_state|"
                       r"known-facts|manual-decisions|CHANGELOG \d|\bv[1-8]\.\d\b|subagent|Gemini")
@@ -363,7 +368,7 @@ def comments(src, text):
             if extra:
                 yield i, "\t".join(extra)
         return
-    marker = {".iss": r"^\s*(;|//)", ".sh": r"^\s*#(?!!)", ".txt": r"^\s*#",
+    marker = {".iss": r"^\s*(;|//)", ".sh": r"^\s*#(?!!)", ".txt": r"^\s*#", ".yml": r"^\s*#",
               ".bat": r"(?i)^\s*rem\b", ".svg": r"<!--"}[ext]
     for n, line in enumerate(text.splitlines(), 1):
         if re.search(marker, line):
@@ -430,6 +435,7 @@ def export():
     pairs = program_pairs(REPO)
     pairs += [(os.path.join(PUBLIC, "assets", a), os.path.join(REPO, "assets", a)) for a in PUBLIC_ASSETS]
     pairs += [(os.path.join(RELEASE, f), os.path.join(REPO, "release", f)) for f in BUILD_FILES]
+    pairs += [(os.path.join(RELEASE, src), os.path.join(REPO, dst)) for src, dst in WORKFLOWS.items()]
     pairs += [(os.path.join(ROOT, f), os.path.join(REPO, f)) for f in REPO_FILES]
     pairs.append((os.path.join(PUBLIC, "gitignore"), os.path.join(REPO, ".gitignore")))
     pairs.append((os.path.join(PUBLIC, "gitattributes"), os.path.join(REPO, ".gitattributes")))
@@ -448,7 +454,9 @@ def export():
 
 def _kept_comments():
     kept = set()
-    for f in APP_FILES + REPO_FILES + [os.path.join("release", b) for b in BUILD_FILES]:
+    workflows = [os.path.join("release", w) if os.path.isfile(os.path.join(RELEASE, w)) else d
+                 for w, d in WORKFLOWS.items()]
+    for f in APP_FILES + REPO_FILES + [os.path.join("release", b) for b in BUILD_FILES] + workflows:
         p = os.path.join(ROOT, f)
         if STRIPPERS.get(os.path.splitext(p)[1]) is None:
             continue
@@ -521,15 +529,16 @@ def bundle_python():
     return py, site
 
 
-def check_packages(py):
+def check_packages(py, exe=None, wheels_dir=WHEELS, ignore=()):
     code = ("import importlib.metadata as md, json; "
             "print(json.dumps({d.metadata['Name']: d.version for d in md.distributions()}))")
-    out = subprocess.run([os.path.join(py, "python.exe"), "-c", code], check=True,
+    out = subprocess.run([exe or os.path.join(py, "python.exe"), "-c", code], check=True,
                          capture_output=True, text=True).stdout
     import json
     got = {re.sub(r"[-_.]+", "-", k).lower(): v for k, v in json.loads(out).items()}
+    got = {k: v for k, v in got.items() if k not in ignore}
     wheels = {}
-    for w in os.listdir(WHEELS):
+    for w in os.listdir(wheels_dir):
         name, ver = w.split("-")[:2]
         wheels[re.sub(r"[-_.]+", "-", name).lower()] = ver
     bad = [f"{k} {v} (wanted {pinned_requirements().get(k) or wheels.get(k)})"
@@ -554,22 +563,24 @@ def check_packages(py):
     print("  THIRD_PARTY_NOTICES.md lists every bundled package at its version")
 
 
-def smoke(py):
-    exe = os.path.join(py, "python.exe")
+def smoke(py, exe=None, image=IMAGE):
+    exe = exe or os.path.join(py, "python.exe")
+    cwd = os.path.dirname(image)
     env = {k: v for k, v in os.environ.items() if not k.startswith("PYTHON")}
     env["PYTHONIOENCODING"] = "utf-8"
     tok = subprocess.run([exe, "-c",
                           "from sudachipy import dictionary; t = dictionary.Dictionary().create(); "
                           "print(' '.join(m.surface() for m in t.tokenize('食べられなかった')))"],
-                         check=True, capture_output=True, env=env, cwd=BUILD,
+                         check=True, capture_output=True, env=env, cwd=cwd,
                          encoding="utf-8").stdout.strip()
     if tok != "食べ られ なかっ た":
         sys.exit(f"build: Sudachi smoke test gave {tok!r}")
     print(f"  Sudachi: {tok}")
-    subprocess.run([exe, "-c", "import paths, utils, library, indexer, epub_indexer, engine"],
-                   check=True, env=env, cwd=BUILD)
+    subprocess.run([exe, "-c", "import sys; sys.path.insert(0, sys.argv[1]); "
+                    "import paths, utils, library, indexer, epub_indexer, engine", image],
+                   check=True, env=env, cwd=cwd)
     print("  paths, utils, library, indexer, epub_indexer, engine: import")
-    stray = [f for f in os.listdir(IMAGE) if f.endswith((".db", ".db-wal", ".db-shm", ".json"))
+    stray = [f for f in os.listdir(image) if f.endswith((".db", ".db-wal", ".db-shm", ".json"))
              or f in ("logs", "content", "aobana.installed")]
     if stray:
         sys.exit(f"build: the smoke test left files in the install image: {stray}")

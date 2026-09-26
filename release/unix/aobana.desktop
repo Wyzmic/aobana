@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Aobana
+Name[ja]=露草
+GenericName=Japanese sentence search
+Comment=Search your Japanese subtitles and books
+Comment[ja]=字幕と本の日本語文検索
+Exec=@EXEC@
+Icon=aobana
+Terminal=true
+Categories=Education;Languages;

@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import shutil
@@ -7,9 +8,37 @@ import threading
 import time
 
 import paths
+from utils import FILTER_COLUMNS, filtered_rows, outdated_sources
 
 _LOCK = threading.Lock()
 _STATE = {"running": False}
+
+
+def _beside_db(name):
+    return os.path.join(os.path.dirname(os.path.abspath(paths.subs_db())), name)
+
+
+def _stop_file(kind):
+    return _beside_db(f".{kind}.stop")
+
+
+def _clear_stop(kind):
+    try:
+        os.remove(_stop_file(kind))
+    except OSError:
+        pass
+
+
+def _run_marker():
+    return _beside_db(".index_run.json")
+
+
+def _unfinished():
+    try:
+        with open(_run_marker(), encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return None
 
 _STAGES = (("subs", "indexer.py"), ("epub", "epub_indexer.py"))
 _SUMMARY_RE = {
@@ -20,21 +49,17 @@ _SUMMARY_RE = {
 }
 
 
-def _count_files(root, ext, need_subfolder, skip_dot):
-    found = loose = other = 0
+def _count_files(root, ext, skip_dot):
+    found = other = 0
     if not root or not os.path.isdir(root):
         return None
     for dirpath, _, files in os.walk(root):
-        at_root = os.path.abspath(dirpath) == os.path.abspath(root)
         for f in files:
             if f.lower().endswith(ext) and not (skip_dot and f.startswith('.')):
-                if need_subfolder and at_root:
-                    loose += 1
-                else:
-                    found += 1
+                found += 1
             elif not f.startswith('.'):
                 other += 1
-    return {"files": found, "loose": loose, "other": other}
+    return {"files": found, "loose": 0, "other": other}
 
 
 def _indexed(conn, table):
@@ -49,6 +74,12 @@ def _indexed(conn, table):
 
 def describe(db_subs, db_epub):
     subs, books = paths.subs_dir(), paths.books_dir()
+    subs_disk = _count_files(subs, (".srt", ".ass", ".ssa"), skip_dot=False)
+    books_disk = _count_files(books, ".epub", skip_dot=True)
+    listed = filtered_rows(paths.filtered_list())
+    for disk, media in ((subs_disk, "subs"), (books_disk, "epub")):
+        if disk:
+            disk["filtered"] = sum(1 for r in listed if r["media"] == media)
     return {
         "installed": paths.INSTALLED,
         "subs_dir": subs,
@@ -59,10 +90,12 @@ def describe(db_subs, db_epub):
         "db_sizes": _db_sizes(paths.db_dir()),
         "port": paths.server_port(),
         "port_env": bool(os.environ.get("AOBANA_PORT")),
-        "subs_disk": _count_files(subs, ".srt", need_subfolder=True, skip_dot=False),
-        "books_disk": _count_files(books, ".epub", need_subfolder=False, skip_dot=True),
+        "subs_disk": subs_disk,
+        "books_disk": books_disk,
         "subs_indexed": _indexed(db_subs, "subtitles"),
         "books_indexed": _indexed(db_epub, "epubs"),
+        "subs_outdated": outdated_sources(db_subs, "subs"),
+        "books_outdated": outdated_sources(db_epub, "epub"),
         "index": index_status(),
     }
 
@@ -86,8 +119,12 @@ _DB_NAMES = ("subs.db", "epub.db")
 _DB_SIDECARS = ("", "-wal", "-shm", "-journal")
 
 
+_DB_COMPANIONS = ("filtered.tsv", "analysis.json", "analysis.db")
+
+
 def _db_files(folder):
-    return [n + s for n in _DB_NAMES for s in _DB_SIDECARS if os.path.isfile(os.path.join(folder, n + s))]
+    return ([n + s for n in _DB_NAMES for s in _DB_SIDECARS if os.path.isfile(os.path.join(folder, n + s))]
+            + [n for n in _DB_COMPANIONS if os.path.isfile(os.path.join(folder, n))])
 
 
 def _db_sizes(folder):
@@ -233,21 +270,60 @@ def open_folder(which):
 
 def index_status():
     with _LOCK:
-        return {k: (list(v) if isinstance(v, list) else v) for k, v in _STATE.items()}
+        out = {k: (list(v) if isinstance(v, list) else v) for k, v in _STATE.items()}
+    if not out.get("running"):
+        out["unfinished"] = _unfinished()
+    return out
 
 
-def start_indexing():
+def stop_indexing():
     with _LOCK:
-        if _STATE.get("running") or _STATE.get("moving"):
+        if not _STATE.get("running"):
+            return False
+        _STATE["stopping"] = True
+    try:
+        open(_stop_file("index"), "w").close()
+    except OSError:
+        return False
+    return True
+
+
+def stop_analysis():
+    with _LOCK:
+        if not _ASTATE.get("running"):
+            return False
+        _ASTATE["stopping"] = True
+    try:
+        open(_stop_file("check"), "w").close()
+    except OSError:
+        return False
+    return True
+
+
+def start_indexing(only=None, outdated=False):
+    stages = tuple(st for st in _STAGES if only in (None, "", "all") or st[0] == only)
+    if not stages:
+        return False
+    with _LOCK:
+        if _STATE.get("running") or _STATE.get("moving") or _ASTATE.get("running"):
             return False
         _STATE.clear()
         _STATE.update({
-            "running": True, "stage": "subs", "done": 0, "total": 0, "current": "",
+            "running": True, "stage": stages[0][0], "stages": [st[0] for st in stages],
+            "done": 0, "total": 0, "current": "",
             "started_at": time.time(), "finished_at": None, "error": None,
-            "results": {}, "skipped_loose": [], "failed": [], "ignored_other": {},
-            "root_missing": [], "root_not_set": [], "log": [],
+            "results": {}, "skipped_clash": [], "failed": [], "ignored_other": {}, "filtered": {},
+            "root_missing": [], "root_not_set": [], "log": [], "stopping": False, "stopped": False,
+            "outdated": bool(outdated),
         })
-    threading.Thread(target=_run, daemon=True).start()
+    _clear_stop("index")
+    try:
+        with open(_run_marker(), "w", encoding="utf-8") as fh:
+            json.dump({"started_at": time.time(), "stages": [st[0] for st in stages],
+                       "outdated": bool(outdated)}, fh)
+    except OSError:
+        pass
+    threading.Thread(target=_run, args=(stages, outdated), daemon=True).start()
     return True
 
 
@@ -256,14 +332,15 @@ def _set(**kw):
         _STATE.update(kw)
 
 
-def _run():
-    env = dict(os.environ, AOBANA_PROGRESS="1", PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1")
+def _run(stages, outdated=False):
+    env = dict(os.environ, AOBANA_PROGRESS="1", PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1",
+               AOBANA_STOP_FILE=_stop_file("index"))
     flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
     try:
-        for stage, script in _STAGES:
+        for stage, script in stages:
             _set(stage=stage, done=0, total=0, current="")
             proc = subprocess.Popen(
-                [sys.executable, os.path.join(paths.BASE_DIR, script)],
+                [sys.executable, os.path.join(paths.BASE_DIR, script)] + (["--outdated"] if outdated else []),
                 cwd=paths.BASE_DIR, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 encoding="utf-8", errors="replace", creationflags=flags)
             for line in proc.stdout:
@@ -271,6 +348,8 @@ def _run():
             code = proc.wait()
             if code != 0:
                 _set(error=f"{script} exited with code {code}")
+                break
+            if _STATE.get("stopped"):
                 break
     except Exception as e:
         _set(error=f"{type(e).__name__}: {e}")
@@ -280,7 +359,12 @@ def _run():
             reset_caches()
         except Exception:
             pass
-        _set(running=False, stage="done", current="", finished_at=time.time())
+        _set(running=False, stopping=False, stage="done", current="", finished_at=time.time())
+        _clear_stop("index")
+        try:
+            os.remove(_run_marker())
+        except OSError:
+            pass
         try:
             from engine import warm_media_library
             threading.Thread(target=warm_media_library, daemon=True).start()
@@ -300,19 +384,188 @@ def _read_line(stage, line):
             head, _, rel = line[len("PROGRESS "):].partition(" ")
             done, _, total = head.partition("/")
             _STATE.update(done=int(done), total=int(total), current=rel)
-        elif line.startswith("SKIPPED_LOOSE "):
-            _STATE["skipped_loose"].append(line[len("SKIPPED_LOOSE "):])
+        elif line.startswith("SKIPPED_CLASH "):
+            _STATE["skipped_clash"].append(line[len("SKIPPED_CLASH "):])
         elif line.startswith("IGNORED_OTHER "):
             _STATE["ignored_other"][stage] = int(line.split()[1])
+        elif line.startswith("FILTERED "):
+            _STATE["filtered"][stage] = int(line.split()[1])
         elif line.startswith("FAILED "):
             _STATE["failed"].append(line[len("FAILED "):])
         elif line.startswith("ROOT_MISSING "):
             _STATE["root_missing"].append(stage)
         elif line.startswith("ROOT_NOT_SET "):
             _STATE["root_not_set"].append(stage)
+        elif line == "STOPPED":
+            _STATE["stopped"] = True
         else:
             m = _SUMMARY_RE[stage].search(line)
             if m:
                 unchanged, indexed, removed = map(int, m.groups())
                 _STATE["results"][stage] = {"unchanged": unchanged, "indexed": indexed,
                                             "removed": removed}
+
+
+_ASTATE = {"running": False}
+FILTERABLE = ("bilingual", "other_language", "duplicate", "duplicate_kept")
+
+
+def analysis_status():
+    with _LOCK:
+        return {k: (list(v) if isinstance(v, list) else v) for k, v in _ASTATE.items()}
+
+
+def start_analysis(only=None):
+    only = only if only in ("subs", "epub") else None
+    with _LOCK:
+        if _ASTATE.get("running") or _STATE.get("running") or _STATE.get("moving"):
+            return False
+        _ASTATE.clear()
+        _ASTATE.update(running=True, stage="subs" if only != "epub" else "epub", done=0, total=0,
+                       current="", started_at=time.time(), finished_at=None, error=None, log=[],
+                       stopping=False, stopped=False)
+    _clear_stop("check")
+    threading.Thread(target=_run_analysis, args=(only,), daemon=True).start()
+    return True
+
+
+def _run_analysis(only):
+    env = dict(os.environ, AOBANA_PROGRESS="1", PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1",
+               AOBANA_STOP_FILE=_stop_file("check"))
+    flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    cmd = [sys.executable, os.path.join(paths.BASE_DIR, "analyser.py")] + (["--only", only] if only else [])
+    try:
+        proc = subprocess.Popen(cmd, cwd=paths.BASE_DIR, env=env, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, encoding="utf-8", errors="replace",
+                                creationflags=flags)
+        for line in proc.stdout:
+            line = line.rstrip("\r\n")
+            with _LOCK:
+                if line.startswith("PROGRESS "):
+                    head, _, rel = line[len("PROGRESS "):].partition(" ")
+                    done, _, total = head.partition("/")
+                    _ASTATE.update(done=int(done), total=int(total), current=rel)
+                elif line.startswith("STAGE "):
+                    _ASTATE.update(stage=line.split()[1], done=0, total=0, current="")
+                elif line.startswith("TOTAL "):
+                    _ASTATE["total"] = int(line.split()[1])
+                elif line == "STOPPED":
+                    _ASTATE["stopped"] = True
+                else:
+                    _ASTATE["log"].append(line)
+                    del _ASTATE["log"][:-200]
+        if proc.wait() != 0:
+            with _LOCK:
+                _ASTATE["error"] = f"analyser.py exited with code {proc.returncode}"
+    except Exception as e:
+        with _LOCK:
+            _ASTATE["error"] = f"{type(e).__name__}: {e}"
+    finally:
+        with _LOCK:
+            _ASTATE.update(running=False, stopping=False, current="", finished_at=time.time())
+        _clear_stop("check")
+
+
+def _report_path():
+    return os.path.join(os.path.dirname(os.path.abspath(paths.subs_db())), "analysis.json")
+
+
+def analysis_report():
+    try:
+        with open(_report_path(), encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return None
+
+
+def _write_filtered(rows):
+    path = paths.filtered_list()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write("\t".join(FILTER_COLUMNS) + "\n")
+        for r in rows:
+            fh.write("\t".join(str(r.get(c, "")).replace("\t", " ").replace("\n", " ")
+                               for c in FILTER_COLUMNS) + "\n")
+    os.replace(tmp, path)
+
+
+def filtered_list():
+    roots = {"subs": paths.subs_dir(), "epub": paths.books_dir()}
+    out = []
+    for r in filtered_rows(paths.filtered_list()):
+        root = roots.get(r["media"])
+        p = os.path.join(root, r["name"]) if root else ""
+        if root and r["media"] == "subs" and not os.path.isfile(p):
+            p = os.path.join(root, os.path.basename(r["name"]))
+        out.append(dict(r, exists=bool(root) and os.path.isfile(p)))
+    return out
+
+
+def filter_flagged(ids):
+    report = analysis_report()
+    if not report:
+        return "no_report", None
+    with _LOCK:
+        if _STATE.get("running") or _STATE.get("moving") or _ASTATE.get("running"):
+            return "busy", None
+        _STATE["moving"] = True
+    try:
+        roots = {"subs": paths.subs_dir(), "epub": paths.books_dir()}
+        rows = filtered_rows(paths.filtered_list())
+        have = {(r["media"], r["name"]) for r in rows}
+        added, refused = [], []
+        for item in report["items"]:
+            if item["id"] not in ids:
+                continue
+            media = item["media"]
+            if (item["reason"] not in FILTERABLE or not roots.get(media)
+                    or not _same_folder(roots[media], report["roots"][media])):
+                refused.append(item["path"])
+                continue
+            if (media, item["name"]) not in have:
+                rows.append({"media": media, "name": item["name"], "reason": item["reason"],
+                             "keep": item.get("keep", ""), "date": time.strftime("%Y-%m-%d %H:%M:%S")})
+                have.add((media, item["name"]))
+            item["filtered"] = True
+            added.append(item["id"])
+        _write_filtered(rows)
+        tmp = _report_path() + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(report, fh, ensure_ascii=False, indent=1)
+        os.replace(tmp, _report_path())
+        return None, {"filtered": added, "refused": refused}
+    finally:
+        with _LOCK:
+            _STATE.pop("moving", None)
+
+
+def unfilter(entries):
+    with _LOCK:
+        if _STATE.get("running") or _STATE.get("moving") or _ASTATE.get("running"):
+            return "busy", 0
+        _STATE["moving"] = True
+    try:
+        drop = {(str(m), str(n)) for m, n in entries}
+        rows = filtered_rows(paths.filtered_list())
+        kept = [r for r in rows if (r["media"], r["name"]) not in drop]
+        if len(kept) != len(rows):
+            _write_filtered(kept)
+        return None, len(rows) - len(kept)
+    finally:
+        with _LOCK:
+            _STATE.pop("moving", None)
+
+
+def estimate(only=None):
+    flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    cmd = [sys.executable, os.path.join(paths.BASE_DIR, "analyser.py"), "--estimate"]
+    if only in ("subs", "epub"):
+        cmd += ["--only", only]
+    try:
+        out = subprocess.run(cmd, cwd=paths.BASE_DIR, capture_output=True, encoding="utf-8",
+                             errors="replace", timeout=300, creationflags=flags,
+                             env=dict(os.environ, PYTHONIOENCODING="utf-8"))
+        return json.loads(out.stdout.strip().splitlines()[-1])
+    except Exception as e:
+        return {"error": f"{type(e).__name__}: {e}"}

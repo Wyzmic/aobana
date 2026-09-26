@@ -10,7 +10,7 @@ set -e
 AOBANA_DIR="${AOBANA_DIR:-/storage/emulated/0/Aobana}"
 TARBALL="https://codeload.github.com/Wyzmic/aobana/tar.gz/refs/heads/main"
 DISTRO="aobana"
-PHONE_FILES="app.py engine.py utils.py paths.py library.py indexer.py epub_indexer.py index.html
+PHONE_FILES="app.py engine.py utils.py paths.py library.py analyser.py indexer.py epub_indexer.py index.html
 requirements.txt LICENSE THIRD_PARTY_NOTICES.md data/ruby static"
 OLD_CLONE_FILES=".git .gitattributes .gitignore assets release termux Aobana.bat aobana.sh
 launcher.py README.md README.ja.md CHANGELOG.md"
@@ -65,6 +65,16 @@ for f in $PHONE_FILES; do
     mkdir -p "$(dirname "$AOBANA_DIR/$f")"
     cp -r "$SRC/$f" "$AOBANA_DIR/$f"
 done
+for pair in "字幕:Subtitles" "書籍:Books"; do
+    old="$AOBANA_DIR/content/${pair%%:*}"
+    new="$AOBANA_DIR/content/${pair##*:}"
+    if [ -d "$old" ] && [ ! -e "$new" ] && ! grep -qs "${pair%%:*}" "$AOBANA_DIR/config.json"; then
+        mv "$old" "$new" && echo "renamed content/${pair%%:*} to content/${pair##*:}"
+    fi
+    if [ ! -e "$old" ] && [ ! -e "$new" ]; then
+        mkdir -p "$new" && echo "made content/${pair##*:}"
+    fi
+done
 
 say "Python and the pinned packages, inside Ubuntu"
 proot-distro login "$DISTRO" -- env DEBIAN_FRONTEND=noninteractive \
@@ -75,15 +85,16 @@ proot-distro login "$DISTRO" -- pip3 install --break-system-packages --no-cache-
 say "Home-screen shortcut (Termux:Widget)"
 mkdir -p "$HOME/.shortcuts"
 sed "s|^AOBANA_DIR=.*|AOBANA_DIR=\"\${AOBANA_DIR:-$AOBANA_DIR}\"|" \
-    "$SRC/termux/aobana-shortcut.sh" > "$HOME/.shortcuts/Aobana"
-chmod +x "$HOME/.shortcuts/Aobana"
+    "$SRC/termux/aobana-shortcut.sh" > "$HOME/.shortcuts/.Aobana.new"
+chmod +x "$HOME/.shortcuts/.Aobana.new"
+mv -f "$HOME/.shortcuts/.Aobana.new" "$HOME/.shortcuts/Aobana"
 
 cat <<EOF
 
 Aobana is installed.
 
   1. Put the index in $AOBANA_DIR: copy subs.db and epub.db from a PC (fastest), or put
-     subtitles in content/字幕 and books in content/書籍 there and press "Index library"
+     subtitles in content/Subtitles and books in content/Books there and press "Index library"
      in the Library tab (slow on a phone).
   2. Add the Termux:Widget widget to your home screen and tap "Aobana".
      It opens in Firefox if it is installed (Yomitan works there), else your default browser.

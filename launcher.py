@@ -70,6 +70,11 @@ def console_python():
 
 
 def main():
+    if "--open-only" in sys.argv[1:]:
+        if server_up() and is_aobana():
+            webbrowser.open(URL)
+            return 0
+        return 3
     if server_up():
         if not is_aobana():
             port_taken_message()

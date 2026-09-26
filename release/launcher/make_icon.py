@@ -3,6 +3,7 @@ downsamples each icon size from that one master. Beside it, the installer's pict
 (wizard-panel-*.png, wizard-small-*.png), drawn from the same SVG.
 
     python release/launcher/make_icon.py [out.ico]
+    python release/launcher/make_icon.py --unix release/unix    aobana.png and aobana.icns
 
 Needs Chrome (or Edge) and Pillow in the Python that runs it - the dev Python, not the bundle.
 """
@@ -145,5 +146,18 @@ def main(out):
     print(f"make_icon: {len(names)} installer pictures beside it")
 
 
+def unix_icons(out_dir):
+    with tempfile.TemporaryDirectory() as tmp:
+        master = render_master(os.path.join(tmp, "master.png"))
+    png = os.path.join(out_dir, "aobana.png")
+    master.resize((512, 512), Image.LANCZOS).save(png, optimize=True)
+    icns = os.path.join(out_dir, "aobana.icns")
+    master.save(icns, format="ICNS")
+    print(f"make_icon: {png}, {icns}")
+
+
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "aobana.ico"))
+    if sys.argv[1:2] == ["--unix"]:
+        unix_icons(sys.argv[2] if len(sys.argv) > 2 else os.path.join(ROOT, "release", "unix"))
+    else:
+        main(sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "aobana.ico"))

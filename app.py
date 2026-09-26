@@ -14,15 +14,39 @@ from flask import Flask, render_template, make_response, request, jsonify, g, ab
 from engine import get_search_results, format_episode_title, format_book_title, get_formatted_title, get_ruby_lexicon
 import paths
 import library
+from utils import outdated_sources
 
 app = Flask(__name__, template_folder='.', static_folder='static')
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 365 * 24 * 3600
+
+
+def _asset_version():
+    import hashlib
+    h = hashlib.sha1()
+    root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+    for d, _, names in sorted(os.walk(root)):
+        for n in sorted(names):
+            st = os.stat(os.path.join(d, n))
+            h.update(f"{n}:{st.st_size}:{st.st_mtime_ns};".encode())
+    return h.hexdigest()[:10]
+
+
+ASSET_V = _asset_version()
+
+
+@app.route("/favicon.ico")
+def favicon():
+    return app.send_static_file("aobana.svg")
 
 BOOT_ID = os.environ.setdefault("AOBANA_BOOT_ID", uuid.uuid4().hex)
 
-VERSION = "1.0"
+VERSION = "1.1"
 RELEASES_URL = "https://github.com/Wyzmic/aobana/releases/latest"
 LATEST_API = "https://api.github.com/repos/Wyzmic/aobana/releases/latest"
 update_info = {"checked": False, "latest": None}
+TERMUX = os.environ.get("AOBANA_TERMUX") == "1"
+SELF_UPDATE = TERMUX and os.environ.get("AOBANA_UPDATER") == "1"
+TERMUX_INSTALL = "curl -fsSL https://raw.githubusercontent.com/Wyzmic/aobana/main/termux/install.sh | bash"
 
 
 def version_tuple(v):
@@ -81,7 +105,6 @@ def close_db(error):
         db_epub.close()
 
 active_queries = {}
-active_flags = {}
 queries_lock = threading.Lock()
 
 @app.route("/", methods=["GET"])
@@ -91,7 +114,7 @@ def index():
     exact = request.args.get("exact", "")
     media = request.args.get("media", "all")
     resp = make_response(render_template("index.html", q=q, sort=sort, exact=exact, media=media,
-                                         boot=BOOT_ID))
+                                         boot=BOOT_ID, asset_v=ASSET_V))
     resp.headers["Cache-Control"] = "no-store"
     return resp
 
@@ -114,22 +137,23 @@ def api_search():
         
     db_subs, db_epub = get_db()
     abort_flag = [False]
-    
+    search = (q, sort, seed if sort == "random" else None, media, exact, folder, file_param)
+    mine = (search, abort_flag, (db_subs, db_epub))
+
     with queries_lock:
-        if client_key in active_flags:
-            active_flags[client_key][0] = True
-            
-        if client_key in active_queries:
-            for conn in active_queries[client_key]:
+        running = active_queries.get(client_key, [])
+        for other_search, other_flag, other_conns in running:
+            if other_search == search:
+                continue
+            other_flag[0] = True
+            for conn in other_conns:
                 if conn is not None:
                     try:
                         conn.interrupt()
                     except Exception:
                         pass
-                
-        active_flags[client_key] = abort_flag
-        active_queries[client_key] = [db_subs, db_epub]
-        
+        active_queries[client_key] = [r for r in running if r[0] == search] + [mine]
+
     try:
         results, folder_counts, global_total, all_folders, has_more = get_search_results(
             db_subs, q, sort=sort, folder=folder, exact=exact, 
@@ -144,10 +168,11 @@ def api_search():
         raise
     finally:
         with queries_lock:
-            if active_queries.get(client_key) == [db_subs, db_epub]:
-                del active_queries[client_key]
-            if active_flags.get(client_key) == abort_flag:
-                del active_flags[client_key]
+            left = [r for r in active_queries.get(client_key, []) if r is not mine]
+            if left:
+                active_queries[client_key] = left
+            else:
+                active_queries.pop(client_key, None)
     
     return jsonify({
         "results": results,
@@ -156,6 +181,16 @@ def api_search():
         "all_folders": all_folders,
         "has_more": has_more
     })
+
+@app.route("/api/search/progress", methods=["GET"])
+def api_search_progress():
+    from engine import search_progress
+    db_subs, db_epub = get_db()
+    return jsonify(search_progress(
+        db_subs, db_epub, request.args.get("q", ""),
+        sort=request.args.get("sort", "recommended"), seed=request.args.get("seed", type=int),
+        media=request.args.get("media", "all"), exact=request.args.get("exact") == "on",
+        folder=request.args.get("folder") or None, file=request.args.get("file") or None))
 
 @app.route("/api/episodes", methods=["GET"])
 def api_episodes():
@@ -371,6 +406,47 @@ def api_locate():
     rows.sort(key=lambda r: len(r.get("clean_text") or ""))
     return jsonify({"rows": rows[:500]})
 
+@app.route("/api/relocate", methods=["POST"])
+def api_relocate():
+    _require_page()
+    items = (request.get_json(silent=True) or {}).get("items", [])[:5000]
+    db_subs, db_epub = get_db()
+    from engine import get_tagger
+    tokenizer_obj, mode = get_tagger()
+    ruby = re.compile(r'｜?([^()\s　（）]+)[（(][^()（）]*[)）]')
+    out = []
+    for it in items:
+        is_book = it.get("media_type") == "epub"
+        db, table = (db_epub, "epubs") if is_book else (db_subs, "subtitles")
+        line, rowid, file = it.get("line") or "", it.get("rowid"), it.get("file") or ""
+        if db is None or not line or rowid is None:
+            out.append(None)
+            continue
+        r = db.execute(f"SELECT file, line FROM {table} WHERE rowid = ?", (rowid,)).fetchone()
+        if r and r["line"] == line and r["file"] == file:
+            out.append(None)
+            continue
+        text = ruby.sub(r'\1', line).replace('｜', '').strip()
+        forms = []
+        for word in tokenizer_obj.tokenize(text, mode):
+            form = word.normalized_form()
+            if form and any(ch.isalnum() for ch in form) and form not in forms:
+                forms.append(form)
+        forms = sorted(forms, key=len, reverse=True)[:3]
+        rows = []
+        if forms:
+            try:
+                rows = db.execute(
+                    f"SELECT rowid, file, line FROM {table} WHERE {table} MATCH ? LIMIT 2000",
+                    (" AND ".join('base_forms:"%s"' % f.replace('"', '""') for f in forms),)).fetchall()
+            except sqlite3.OperationalError:
+                rows = []
+        work = lambda f: f.split("\\")[0] if is_book else f.replace("\\", "/").rsplit("/", 1)[0]
+        same = [x for x in rows if x["line"] == line]
+        best = (min(same, key=lambda x: (work(x["file"]) != work(file), abs(x["rowid"] - rowid))) if same else None)
+        out.append({"rowid": best["rowid"], "file": best["file"]} if best else None)
+    return jsonify({"items": out})
+
 
 def _require_page():
     if request.headers.get("X-Aobana") != "1":
@@ -379,18 +455,33 @@ def _require_page():
 
 @app.route("/api/media", methods=["GET"])
 def api_media():
-    from engine import get_media_library
+    from engine import get_media_library, media_library_status, media_page
     db_subs, db_epub = get_db()
-    media = request.args.get("media", "all")
-    items = [it for it in get_media_library(db_subs, db_epub)
-             if media == "all" or it["media"] == media]
-    return jsonify({"items": items})
+    status = media_library_status(db_subs, db_epub)
+    if not status["ready"]:
+        return jsonify(status), 202
+    folder = request.args.get("folder")
+    page = media_page(get_media_library(db_subs, db_epub),
+                      media=request.args.get("media", "all"),
+                      needle=request.args.get("q", ""),
+                      offset=max(0, request.args.get("offset", 0, type=int)),
+                      limit=max(0, request.args.get("limit", 0, type=int)),
+                      folder=folder)
+    page["ready"] = True
+    return jsonify(page)
 
 
 @app.route("/api/library", methods=["GET"])
 def api_library():
     db_subs, db_epub = get_db()
     return jsonify(library.describe(db_subs, db_epub))
+
+
+@app.route("/api/library/outdated", methods=["GET"])
+def api_library_outdated():
+    db_subs, db_epub = get_db()
+    return jsonify({"subs_outdated": outdated_sources(db_subs, "subs"),
+                    "books_outdated": outdated_sources(db_epub, "epub")})
 
 
 @app.route("/api/library", methods=["POST"])
@@ -421,11 +512,72 @@ def api_library_open():
     return jsonify({"ok": True})
 
 
+@app.route("/api/library/analyse", methods=["POST"])
+def api_library_analyse():
+    _require_page()
+    only = (request.get_json(silent=True) or {}).get("only")
+    started = library.start_analysis(only)
+    return jsonify({"started": started, **library.analysis_status()})
+
+
+@app.route("/api/library/analyse/stop", methods=["POST"])
+def api_library_analyse_stop():
+    _require_page()
+    return jsonify({"stopping": library.stop_analysis(), **library.analysis_status()})
+
+
+@app.route("/api/library/analysis", methods=["GET"])
+def api_library_analysis():
+    return jsonify({"status": library.analysis_status(), "report": library.analysis_report(),
+                    "filtered": library.filtered_list()})
+
+
+@app.route("/api/library/filter", methods=["POST"])
+def api_library_filter():
+    _require_page()
+    ids = (request.get_json(silent=True) or {}).get("ids") or []
+    try:
+        ids = {int(i) for i in ids}
+    except (TypeError, ValueError):
+        return jsonify({"error": "bad_ids"}), 400
+    error, result = library.filter_flagged(ids)
+    if error:
+        return jsonify({"error": error}), 400
+    return jsonify({"ok": True, **result})
+
+
+@app.route("/api/library/unfilter", methods=["POST"])
+def api_library_unfilter():
+    _require_page()
+    entries = (request.get_json(silent=True) or {}).get("entries") or []
+    try:
+        entries = [(str(e["media"]), str(e["name"])) for e in entries]
+    except (TypeError, KeyError):
+        return jsonify({"error": "bad_entries"}), 400
+    error, n = library.unfilter(entries)
+    if error:
+        return jsonify({"error": error}), 400
+    return jsonify({"ok": True, "unfiltered": n})
+
+
+@app.route("/api/library/estimate", methods=["GET"])
+def api_library_estimate():
+    return jsonify(library.estimate(request.args.get("only")))
+
+
 @app.route("/api/index", methods=["POST"])
 def api_index_start():
     _require_page()
-    started = library.start_indexing()
+    body = request.get_json(silent=True) or {}
+    only = body.get("only")
+    started = library.start_indexing(only if only in ("subs", "epub") else None, bool(body.get("outdated")))
     return jsonify({"started": started, **library.index_status()})
+
+
+@app.route("/api/index/stop", methods=["POST"])
+def api_index_stop():
+    _require_page()
+    return jsonify({"stopping": library.stop_indexing(), **library.index_status()})
 
 
 @app.route("/api/update", methods=["GET"])
@@ -433,7 +585,20 @@ def api_update():
     latest = update_info["latest"]
     newer = bool(latest) and version_tuple(latest) > version_tuple(VERSION)
     return jsonify({"checked": update_info["checked"], "current": VERSION, "latest": latest,
-                    "newer": newer, "url": RELEASES_URL})
+                    "newer": newer, "url": RELEASES_URL, "termux": TERMUX,
+                    "self_update": SELF_UPDATE, "install_cmd": TERMUX_INSTALL})
+
+
+UPDATE_EXIT_CODE = 75
+
+
+@app.route("/api/update/apply", methods=["POST"])
+def api_update_apply():
+    _require_page()
+    if not SELF_UPDATE:
+        abort(404)
+    threading.Timer(0.5, os._exit, args=(UPDATE_EXIT_CODE,)).start()
+    return jsonify({"ok": True})
 
 
 @app.route("/api/index/status", methods=["GET"])
@@ -454,5 +619,6 @@ if __name__ == "__main__":
             except Exception:
                 pass
         print(f"露草 / Aobana - http://127.0.0.1:{PORT}/")
-        print("Close this window to stop the server.")
+        print("Close Termux to stop the server." if TERMUX else "Close this window to stop the server.")
+    paths.make_source_folders()
     app.run(host='127.0.0.1', port=PORT, debug=DEBUG)

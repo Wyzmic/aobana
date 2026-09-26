@@ -2,6 +2,7 @@ import os
 import re
 import sqlite3
 import hashlib
+import time
 from sudachipy import tokenizer, dictionary
 from datetime import datetime
 
@@ -11,18 +12,29 @@ ROOT_DIR = paths.subs_dir()
 DB_PATH = paths.subs_db()
 PROGRESS = os.environ.get("AOBANA_PROGRESS") == "1"
 
-tokenizer_obj = dictionary.Dictionary(dict="core").create()
+_TOKENIZER = None
 mode = tokenizer.Tokenizer.SplitMode.A
+SUDACHI_MAX_BYTES = 49149
+
+
+def get_tokenizer():
+    global _TOKENIZER
+    if _TOKENIZER is None:
+        _TOKENIZER = dictionary.Dictionary(dict="core").create()
+    return _TOKENIZER
 
 from utils import (
     KANA_RE, KANJI_CHARS, KANJI_PATTERN,
     ALPHA_CHARS, ALPHA_PATTERN, RUBY_BASE_RE, RUBY_RE,
-    norm_relpath, write_tokenizer_meta, ruby_index_extras,
+    norm_relpath, INDEX_FORMAT, ensure_format_column, compact_if_worth, stop_requested, sub_relpath, write_tokenizer_meta, ruby_index_extras, parallel_map,
+    strip_chinese_chunks, is_chinese_text, filtered_names,
 )
 
 HTML_TAG_RE = re.compile(r'</?(?:i|b|u|s|font)[^>]*>', re.IGNORECASE)
+BIDI_MARK_RE = re.compile(r'&(?:lrm|rlm);|[‎‏]')
+HTML_ENTITIES = (('&lt;', '<'), ('&gt;', '>'), ('&amp;', '&'))
 SQUARE_BRACKETS_RE = re.compile(r'\[[^\[\]]*\]')
-TIMECODE_RE = re.compile(r'\d{2}:\d{2}:\d{2},[^ ]+\s*-->\s*\d{2}:\d{2}:\d{2},[^ ]+')
+TIMECODE_RE = re.compile(r'\d{2,}(?::\d{2}){2,3},[^ ]+\s*-->\s*\d{2,}(?::\d{2}){2,3},[^ ]+')
 
 SIMP_CHINESE_RE = re.compile(r'[这吗呢吧啦么谁们从说话样觉视频听欢买卖错让帮确对爱关门图运无计场动时发现经还进长您她啥够钟钱馆帅步舔护见恼变樱联语弃寻伫战龙击两亚丽丝态类优恶办统层头谈论戏极气为复杂转带质压雾辈适厌连隐谓认费愿拥应废东获谢闪诚责过军预给险刚脑测实迟钝虽剑临圣请哪呗尔谅创兰鲁伙开读网电车专乐业产农风飞杀药权树桥决减满卫织续损]')
 PROMO_URL_RE = re.compile(r'(?:https?://|www\.|(?:\.com|\.cc|\.net|\.org)(?:\b|/))', re.IGNORECASE)
@@ -30,6 +42,7 @@ JAPANESE_CHARS_RE = re.compile(r'[\u3040-\u30FF\u4E00-\u9FFF\u3400-\u4DBF\uF900-
 
 _EXCLUDED_LOG = []
 _WAKATI_LOG = []
+_NOTES = []
 
 from utils import convert_hw_katakana, SUBS_STR_REPLACEMENTS, katakana_to_hiragana
 
@@ -103,7 +116,13 @@ def smart_join(lines):
 
 def clean_line(line, relpath):
     folder = re.split(r"[\\/]", relpath)[0]
-    if SIMP_CHINESE_RE.search(line):
+    line = BIDI_MARK_RE.sub('', line)
+    for entity, char in HTML_ENTITIES:
+        line = line.replace(entity, char)
+    line, chinese = strip_chinese_chunks(line)
+    for chunk in chinese:
+        _EXCLUDED_LOG.append((folder, "CHINESE_PART", chunk))
+    if SIMP_CHINESE_RE.search(line) or is_chinese_text(line):
         _EXCLUDED_LOG.append((folder, "CHINESE", line))
         return ""
     if PROMO_URL_RE.search(line) and not JAPANESE_CHARS_RE.search(line):
@@ -122,7 +141,7 @@ def clean_line(line, relpath):
         elif skip == 0: result.append(char)
     cleaned_text = _postprocess_sentence(''.join(result).strip())
     if UNCLOSED_RUBY_RE.search(cleaned_text):
-        print(f"UNCLOSED_RUBY {relpath}: {cleaned_text}".encode('cp932', 'replace').decode('cp932'))
+        _NOTES.append(f"UNCLOSED_RUBY {relpath}: {cleaned_text}".encode('cp932', 'replace').decode('cp932'))
     return cleaned_text
 
 def is_music_only_line(line):
@@ -210,6 +229,145 @@ def extract_lines_grouped_by_timecode(srt_content, relpath):
     cleaned_lines, _ = assess_and_clean_wakati(lines, relpath)
     return cleaned_lines
 
+SUB_EXTS = ('.srt', '.ass', '.ssa')
+ASS_TAG_RE = re.compile(r'\{[^}]*\}')
+ASS_GAIJI_RE = re.compile(r'\[外:[0-9A-Fa-f]+\]')
+ASS_TIME_RE = re.compile(r'(\d+):(\d{2}):(\d{2})[.:](\d{1,3})')
+ASS_RUBY_STYLE_RE = re.compile(r'rubi|ruby|furigana', re.IGNORECASE)
+ASS_CREDIT_STYLE_RE = re.compile(r'staff|credit|製作|制作|注釋|注释|^cmt', re.IGNORECASE)
+KANA_RE_ASS = re.compile(r'[ぁ-ゖァ-ヺー]')
+KANA_ONLY_RE = re.compile(r'[ぁ-ゖァ-ヺー\s　]+')
+ASS_KANA_SHARE = 0.2
+
+
+def read_subtitle_text(path):
+    if not path.lower().endswith(('.ass', '.ssa')):
+        with open(path, encoding='utf-8', errors='ignore') as f:
+            return f.read()
+    with open(path, 'rb') as f:
+        raw = f.read()
+    if raw[:2] in (b'\xff\xfe', b'\xfe\xff'):
+        return raw.decode('utf-16', errors='ignore')
+    for enc in ('utf-8-sig', 'cp932'):
+        try:
+            return raw.decode(enc)
+        except UnicodeDecodeError:
+            pass
+    return raw.decode('utf-8', errors='ignore')
+
+
+def _ass_time(s):
+    m = ASS_TIME_RE.match(s.strip())
+    if not m:
+        return None
+    h, mi, se, frac = m.groups()
+    ms = int(frac.ljust(3, '0')[:3])
+    return ((int(h) * 60 + int(mi)) * 60 + int(se)) * 1000 + ms
+
+
+def _srt_time(ms):
+    h, ms = divmod(ms, 3600000)
+    m, ms = divmod(ms, 60000)
+    s, ms = divmod(ms, 1000)
+    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+
+def _ass_last_tag(tags, name):
+    found = re.findall(r'\\' + name + r'(-?[\d.]+)', tags)
+    return float(found[-1]) if found else None
+
+
+def parse_ass_events(content, stats=None):
+    section, fields, style_size = None, None, {}
+    style_fields = None
+    events = []
+    for line in content.splitlines():
+        s = line.strip()
+        if s.startswith('[') and s.endswith(']'):
+            section = s.lower()
+            continue
+        if ':' not in s:
+            continue
+        key, _, value = s.partition(':')
+        key = key.strip().lower()
+        if section in ('[v4+ styles]', '[v4 styles]'):
+            if key == 'format':
+                style_fields = [f.strip().lower() for f in value.split(',')]
+            elif key == 'style' and style_fields:
+                vals = [v.strip() for v in value.split(',')]
+                row = dict(zip(style_fields, vals))
+                try:
+                    style_size[row.get('name', '').lower()] = float(row.get('fontsize', ''))
+                except ValueError:
+                    pass
+        elif section == '[events]':
+            if key == 'format':
+                fields = [f.strip().lower() for f in value.split(',')]
+            elif key == 'dialogue' and fields:
+                parts = value.split(',', len(fields) - 1)
+                if len(parts) < len(fields):
+                    continue
+                ev = dict(zip(fields, parts))
+                start, end = _ass_time(ev.get('start', '')), _ass_time(ev.get('end', ''))
+                if start is None or end is None:
+                    continue
+                raw = ev.get('text', '')
+                tags = ''.join(ASS_TAG_RE.findall(raw))
+                text = ASS_TAG_RE.sub('', raw)
+                text = text.replace('\\N', '\n').replace('\\n', '\n').replace('\\h', ' ')
+                text = ASS_GAIJI_RE.sub('', text)
+                text = '\n'.join(t.strip() for t in text.split('\n') if t.strip())
+                events.append({'start': start, 'end': end, 'raw': raw, 'tags': tags,
+                               'style': ev.get('style', '').strip(), 'text': text, 'drop': None})
+
+    cjk, kana = {}, {}
+    for ev in events:
+        st = ev['style'].lower()
+        if JAPANESE_CHARS_RE.search(ev['text']):
+            cjk[st] = cjk.get(st, 0) + 1
+            if KANA_RE_ASS.search(ev['text']):
+                kana[st] = kana.get(st, 0) + 1
+    japanese = {st for st, n in cjk.items() if kana.get(st, 0) / n >= ASS_KANA_SHARE}
+
+    for ev in events:
+        st, text, tags = ev['style'].lower(), ev['text'], ev['tags']
+        p = _ass_last_tag(tags, 'p')
+        fscy = _ass_last_tag(tags, 'fscy')
+        fs = _ass_last_tag(tags, 'fs')
+        base = style_size.get(st) or style_size.get('*' + st) or style_size.get('default')
+        small = (fscy is not None and fscy < 100) or (fs is not None and base and fs < base * 0.75)
+        if p:
+            ev['drop'] = 'drawing'
+        elif not text:
+            ev['drop'] = 'empty'
+        elif ASS_RUBY_STYLE_RE.search(st):
+            ev['drop'] = 'ruby-style'
+        elif small and KANA_ONLY_RE.fullmatch(text):
+            ev['drop'] = 'ruby-small'
+        elif ASS_CREDIT_STYLE_RE.search(st):
+            ev['drop'] = 'credits'
+        elif st not in japanese:
+            ev['drop'] = 'not-japanese-style'
+        elif not JAPANESE_CHARS_RE.search(text):
+            ev['drop'] = 'no-japanese'
+        if stats is not None:
+            stats[ev['drop'] or 'kept'] += 1
+    return events
+
+
+def ass_to_srt(content, stats=None):
+    groups = {}
+    for ev in parse_ass_events(content, stats):
+        if ev['drop']:
+            continue
+        texts = groups.setdefault((ev['start'], ev['end']), [])
+        if ev['text'] not in texts:
+            texts.append(ev['text'])
+    out = []
+    for n, ((start, end), texts) in enumerate(sorted(groups.items(), key=lambda kv: kv[0]), 1):
+        out.append(f"{n}\n{_srt_time(start)} --> {_srt_time(end)}\n" + '\n'.join(texts) + "\n")
+    return '\n'.join(out)
+
 def get_clean_text_for_mecab(line: str) -> str:
     return RUBY_RE.sub(r'\1\2', line)
 
@@ -217,7 +375,7 @@ def get_clean_text_for_mecab(line: str) -> str:
 def analyze_with_sudachi(clean_text: str):
     base_forms = []
     readings = []
-    for word in tokenizer_obj.tokenize(clean_text, mode):
+    for word in get_tokenizer().tokenize(clean_text, mode):
         base_forms.append(word.normalized_form())
         
         kana = word.reading_form()
@@ -235,9 +393,55 @@ def compute_file_hash(path):
             h.update(chunk)
     return h.hexdigest()
 
-def run_indexer(force=False):
-    print(f"Starting indexer on {ROOT_DIR} (force={force})...")
+def kept_lines(path, relpath):
+    content = read_subtitle_text(path)
+    if path.lower().endswith(('.ass', '.ssa')):
+        content = ass_to_srt(content)
+    return extract_lines_grouped_by_timecode(content, relpath)
+
+
+def index_rows(flat_lines, relpath):
+    rows = []
+    for line in flat_lines:
+        clean_text = get_clean_text_for_mecab(line)
+        if len(clean_text.encode('utf-8')) > SUDACHI_MAX_BYTES:
+            _EXCLUDED_LOG.append((re.split(r"[\\/]", relpath)[0], "TOO_LONG", clean_text[:200]))
+            _NOTES.append(f"TOO_LONG {relpath}: {len(clean_text.encode('utf-8'))} bytes")
+            continue
+        base_forms, readings = analyze_with_sudachi(clean_text)
+
+        extracted_rubies = [m[2] for m in RUBY_RE.findall(line)]
+        if extracted_rubies:
+            base_forms, readings = ruby_index_extras(line, RUBY_RE, base_forms, readings)
+            line = RUBY_RE.sub(clean_ruby_match, line)
+
+        rows.append((line, clean_text, base_forms, readings))
+    return rows
+
+
+def _prepare(job):
+    path, relpath, known_hash = job
     _EXCLUDED_LOG.clear()
+    _WAKATI_LOG.clear()
+    _NOTES.clear()
+    try:
+        file_hash = compute_file_hash(path)
+        if file_hash == known_hash:
+            return ('same', relpath, file_hash, None)
+        rows = index_rows(kept_lines(path, relpath), relpath)
+    except Exception as e:
+        return ('error', relpath, None, f"{type(e).__name__}: {e}")
+    return ('rows', relpath, file_hash, (rows, list(_EXCLUDED_LOG), list(_WAKATI_LOG), list(_NOTES)))
+
+
+COMMIT_EVERY_FILES = 200
+COMMIT_EVERY_SECONDS = 20
+
+
+def run_indexer(force=False, outdated=False):
+    print(f"Starting indexer on {ROOT_DIR} (force={force}, outdated={outdated})...")
+    _EXCLUDED_LOG.clear()
+    _WAKATI_LOG.clear()
     if ROOT_DIR is None:
         print("ROOT_NOT_SET subs")
         print("No subtitle folder is set (Library tab). Nothing was changed.")
@@ -247,16 +451,17 @@ def run_indexer(force=False):
         print("Indexing aborted: the subtitle folder does not exist. Nothing was changed.")
         return
     os.makedirs(os.path.dirname(os.path.abspath(DB_PATH)), exist_ok=True)
+    excluded, wakati = [], []
 
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
-        
+
         if force:
             print("Force rebuild requested. Dropping existing tables...")
             conn.execute("DROP TABLE IF EXISTS subtitles")
             conn.execute("DROP TABLE IF EXISTS sources")
             conn.commit()
-        
+
         conn.execute('''
             CREATE TABLE IF NOT EXISTS sources (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -265,7 +470,7 @@ def run_indexer(force=False):
                 indexed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
-        
+
         try:
             cur = conn.execute("SELECT sql FROM sqlite_master WHERE name='subtitles'")
             row = cur.fetchone()
@@ -275,7 +480,7 @@ def run_indexer(force=False):
             print("Old database schema detected. Rebuilding FTS table...")
             conn.execute("DROP TABLE IF EXISTS subtitles")
             conn.execute("DELETE FROM sources")
-            
+
         conn.execute('''
             CREATE VIRTUAL TABLE IF NOT EXISTS subtitles USING fts5(
                 source_id UNINDEXED,
@@ -287,119 +492,162 @@ def run_indexer(force=False):
                 tokenize = "unicode61"
             )
         ''')
+        conn.commit()
 
-        cur = conn.execute("SELECT id, relpath, file_hash FROM sources")
-        existing_files = {row['relpath']: {'id': row['id'], 'hash': row['file_hash']} for row in cur}
-        
+        ensure_format_column(conn)
+        conn.commit()
+        cur = conn.execute("SELECT id, relpath, file_hash, index_format FROM sources")
+        existing_files = {row['relpath']: {'id': row['id'], 'hash': None if outdated and row['index_format'] < INDEX_FORMAT['subs'] else row['file_hash']}
+                          for row in cur}
+        deleted_rows = inserted_rows = 0
+        if outdated:
+            n_old = sum(1 for v in existing_files.values() if v['hash'] is None)
+            if n_old:
+                print(f"OUTDATED {n_old}")
+        top = conn.execute("SELECT rowid FROM subtitles ORDER BY rowid DESC LIMIT 1").fetchone()
+        floor = top[0] if top else 0
+        next_rowid = floor + 1
+        replaced = []
+
+        def flush():
+            nonlocal deleted_rows
+            if replaced:
+                marks = ",".join("?" * len(replaced))
+                deleted_rows += conn.execute(f"DELETE FROM subtitles WHERE rowid <= ? AND source_id IN ({marks})",
+                                             [floor] + replaced).rowcount
+                replaced.clear()
+            conn.commit()
+
         current_disk_files = set()
         new_or_updated = 0
         skipped = 0
+        failed = 0
 
-        srt_paths, loose, ignored = [], [], 0
+        srt_paths, ignored = [], 0
         for dirpath, _, filenames in os.walk(ROOT_DIR):
-            at_root = os.path.abspath(dirpath) == os.path.abspath(ROOT_DIR)
             for fname in filenames:
-                if not fname.lower().endswith('.srt'):
+                if not fname.lower().endswith(SUB_EXTS):
                     if not fname.startswith('.'):
                         ignored += 1
                     continue
-                (loose if at_root else srt_paths).append((dirpath, fname))
-        for _, fname in loose:
-            print(f"SKIPPED_LOOSE {fname}")
+                srt_paths.append((dirpath, fname))
         if ignored:
             print(f"IGNORED_OTHER {ignored}")
         if PROGRESS:
             print(f"TOTAL {len(srt_paths)}", flush=True)
 
-        for n, (dirpath, fname) in enumerate(srt_paths, 1):
+        filtered = filtered_names(paths.filtered_list(), "subs")
+        jobs, n_filtered = [], 0
+        for dirpath, fname in srt_paths:
             path = os.path.join(dirpath, fname)
-            relpath = norm_relpath(path, ROOT_DIR)
-            if PROGRESS:
-                print(f"PROGRESS {n}/{len(srt_paths)} {relpath}", flush=True)
-            current_disk_files.add(relpath)
-                
-            file_hash = compute_file_hash(path)
-                
-            if relpath in existing_files:
-                if existing_files[relpath]['hash'] == file_hash:
-                    skipped += 1
-                    continue
-                else:
-                    source_id = existing_files[relpath]['id']
-                    conn.execute("DELETE FROM subtitles WHERE source_id = ?", (source_id,))
-                    conn.execute("UPDATE sources SET file_hash = ?, indexed_at = ? WHERE id = ?", 
-                                 (file_hash, datetime.now(), source_id))
-            else:
-                cur = conn.execute("INSERT INTO sources (relpath, file_hash) VALUES (?, ?)", 
-                                   (relpath, file_hash))
-                source_id = cur.lastrowid
-                
-            new_or_updated += 1
-
-            try:
-                with open(path, encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
-            except Exception as e:
-                print(f"Error reading {path}: {e}")
+            relpath = sub_relpath(path, ROOT_DIR)
+            if relpath in filtered:
+                n_filtered += 1
                 continue
+            if relpath in current_disk_files:
+                print(f"SKIPPED_CLASH {fname}")
+                continue
+            current_disk_files.add(relpath)
+            jobs.append((path, relpath, existing_files.get(relpath, {}).get('hash')))
+        if n_filtered:
+            print(f"FILTERED {n_filtered}")
 
-            flat_lines = extract_lines_grouped_by_timecode(content, relpath)
-                
-            rows_to_insert = []
-            for i, line in enumerate(flat_lines):
-                clean_text = get_clean_text_for_mecab(line)
-                base_forms, readings = analyze_with_sudachi(clean_text)
-                    
-                extracted_rubies = [m[2] for m in RUBY_RE.findall(line)]
-                if extracted_rubies:
-                    base_forms, readings = ruby_index_extras(line, RUBY_RE, base_forms, readings)
-                    line = RUBY_RE.sub(clean_ruby_match, line)
-                    
-                rows_to_insert.append((source_id, relpath, line, clean_text, base_forms, readings))
-                
-            conn.executemany(
-                "INSERT INTO subtitles(source_id, file, line, clean_text, base_forms, readings) VALUES (?, ?, ?, ?, ?, ?);",
-                rows_to_insert
-            )
+        workers = paths.index_workers() if len(jobs) > 1 else 1
+        if workers > 1:
+            print(f"Workers: {workers}")
+        meta_written = False
+        pending, last_commit = 0, time.monotonic()
+        stopped = False
+        for n, (kind, relpath, file_hash, payload) in enumerate(
+                parallel_map(_prepare, jobs, workers, chunksize=4), 1):
+            if stop_requested():
+                stopped = True
+                break
+            if PROGRESS:
+                print(f"PROGRESS {n}/{len(jobs)} {relpath}", flush=True)
+            if kind == 'same':
+                skipped += 1
+                continue
+            old = existing_files.get(relpath)
+            if kind == 'error':
+                if old:
+                    deleted_rows += conn.execute("DELETE FROM subtitles WHERE source_id = ?", (old['id'],)).rowcount
+                    conn.execute("DELETE FROM sources WHERE id = ?", (old['id'],))
+                failed += 1
+                print(f"FAILED {relpath}: {payload}")
+                continue
+            rows, file_excluded, file_wakati, notes = payload
+            excluded.extend(file_excluded)
+            wakati.extend(file_wakati)
+            for note in notes:
+                print(note)
+            if not meta_written:
+                write_tokenizer_meta(conn, 1)
+                meta_written = True
+            if old:
+                source_id = old['id']
+                replaced.append(source_id)
+                conn.execute("UPDATE sources SET file_hash = ?, indexed_at = ?, index_format = ? WHERE id = ?",
+                             (file_hash, datetime.now(), INDEX_FORMAT['subs'], source_id))
+            else:
+                cur = conn.execute("INSERT INTO sources (relpath, file_hash, index_format) VALUES (?, ?, ?)",
+                                   (relpath, file_hash, INDEX_FORMAT['subs']))
+                source_id = cur.lastrowid
+            new_or_updated += 1
+            inserted_rows += conn.executemany(
+                "INSERT INTO subtitles(rowid, source_id, file, line, clean_text, base_forms, readings) VALUES (?, ?, ?, ?, ?, ?, ?);",
+                [(next_rowid + i, source_id, relpath) + r for i, r in enumerate(rows)]
+            ).rowcount
+            next_rowid += len(rows)
             print(f"Indexed: {relpath.encode('cp932', 'replace').decode('cp932')}")
-        
+            pending += 1
+            if pending >= COMMIT_EVERY_FILES or time.monotonic() - last_commit >= COMMIT_EVERY_SECONDS:
+                flush()
+                pending, last_commit = 0, time.monotonic()
+        flush()
+
         deleted_files = set(existing_files.keys()) - current_disk_files
         for relpath in deleted_files:
             source_id = existing_files[relpath]['id']
-            conn.execute("DELETE FROM subtitles WHERE source_id = ?", (source_id,))
+            deleted_rows += conn.execute("DELETE FROM subtitles WHERE source_id = ?", (source_id,)).rowcount
             conn.execute("DELETE FROM sources WHERE id = ?", (source_id,))
-            print(f"Removed deleted file: {relpath}")
+            print(f"Removed {'filtered' if relpath in filtered else 'deleted'} file: {relpath}")
 
-        ident = write_tokenizer_meta(conn, new_or_updated)
+        ident = write_tokenizer_meta(conn, 0)
         if new_or_updated:
             print(f"Tokenizer: SudachiDict-core {ident['sudachidict_version']} "
                   f"({ident['dictionary_format']}), SudachiPy {ident['sudachipy_version']}, "
                   f"system.dic {ident['system_dic_sha256'][:12]}")
 
         conn.commit()
+        if stopped:
+            print("STOPPED", flush=True)
+        else:
+            compact_if_worth(conn, "subtitles", deleted_rows, inserted_rows)
     
-    if _EXCLUDED_LOG:
+    if excluded:
         log_path = os.path.join(paths.logs_dir(), "excluded_lines.txt")
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
         with open(log_path, "w", encoding="utf-8") as log_f:
-            for folder, reason, text in _EXCLUDED_LOG:
+            for folder, reason, text in excluded:
                 log_f.write(f"[{folder}] [{reason}] {text}\n")
 
-    if _WAKATI_LOG:
+    if wakati:
         log_path = os.path.join(paths.logs_dir(), "wakati_normalized.txt")
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
         with open(log_path, "w", encoding="utf-8") as log_f:
-            for relp, count, mean_c in _WAKATI_LOG:
+            for relp, count, mean_c in wakati:
                 log_f.write(f"[{relp}] {count} lines normalized (mean chunk: {mean_c:.2f} chars)\n")
 
-    print(f"Indexing complete! Skipped {skipped} unchanged files. Indexed {new_or_updated} new/updated files. Removed {len(deleted_files)} deleted files.")
-    if _WAKATI_LOG:
-        total_wakati_lines = sum(c for _, c, _ in _WAKATI_LOG)
-        print(f"Wakati-Gaki Normalization: Encountered and normalized {len(_WAKATI_LOG)} file(s) ({total_wakati_lines} lines).")
+    print(f"Indexing complete! Skipped {skipped} unchanged files. Indexed {new_or_updated} new/updated files. Removed {len(deleted_files)} deleted files."
+          + (f" Failed {failed}." if failed else ""))
+    if wakati:
+        total_wakati_lines = sum(c for _, c, _ in wakati)
+        print(f"Wakati-Gaki Normalization: Encountered and normalized {len(wakati)} file(s) ({total_wakati_lines} lines).")
     else:
         print("Wakati-Gaki Normalization: 0 wakati-spaced files encountered.")
 
 if __name__ == "__main__":
     import sys
     force_rebuild = "--force" in sys.argv
-    run_indexer(force=force_rebuild)
+    run_indexer(force=force_rebuild, outdated="--outdated" in sys.argv)

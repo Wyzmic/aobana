@@ -40,6 +40,11 @@ def get_db_total(db_subs, db_epub, media='all'):
     key = (media, db_fingerprint(db_subs, db_epub))
     if key in GLOBAL_DB_TOTALS:
         return GLOBAL_DB_TOTALS[key]
+    lib = _media_library_cached(key[1])
+    if lib is not None:
+        total = sum(it["lines"] for it in lib if media in ('all', it["media"]))
+        GLOBAL_DB_TOTALS[key] = total
+        return total
 
     total = 0
     if media in ('all', 'subs') and db_subs is not None:
@@ -871,130 +876,384 @@ def get_formatted_title(db_conn, relpath):
     return GLOBAL_TITLES[relpath]
 
 
+FW_TO_HW_DIGITS = str.maketrans('０１２３４５６７８９', '0123456789')
+_KANJI_DIGITS = {'一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9}
+
+
+def parse_int_or_kanji(s):
+    s = s.translate(FW_TO_HW_DIGITS)
+    if s.isdigit():
+        return int(s)
+    total = curr = 0
+    for ch in s:
+        if ch in _KANJI_DIGITS:
+            curr = _KANJI_DIGITS[ch]
+        elif ch == '十':
+            total += (curr or 1) * 10
+            curr = 0
+        elif ch == '百':
+            total += (curr or 1) * 100
+            curr = 0
+        else:
+            return None
+    total += curr
+    return total or None
+
+
+SUB_EXT_RE = re.compile(r"\.(?:srt|ass|ssa)$", re.IGNORECASE)
+SUB_LANG_SUFFIX_RE = re.compile(
+    r"[\._\-](?:ja|jp|jpn|jap|ja[\-_]jp|ja[\-_]en|jpn[\-_]en|jp[\-_]en|chs|cht|zh|en|eng)"
+    r"(?:[\._\-](?:sdh|cc|hi|forced|full))?(?:\[(?:cc|sdh|hi|forced)\])?$",
+    re.IGNORECASE,
+)
+SUB_CRC_RE = re.compile(r"\s*[\[\(（]\s*[0-9A-Fa-f]{8}\s*[\]\)）]")
+SUB_LEADING_GROUP_RE = re.compile(r"^\s*\[([^\]]*)\]\s*")
+SUB_PURE_EP_BRACKET_RE = re.compile(r"^\d{1,3}(?:v\d+)?(?:[～\-・/]\d{1,3}(?:v\d+)?)?$", re.IGNORECASE)
+SUB_SEASON_IN_BRACKET_RE = re.compile(
+    r"(?:\d+(?:st|nd|rd|th)\s+Season|Season\s+\d+|第[0-9０-９一二三四五六七八九十]+(?:期|季|シリーズ))",
+    re.IGNORECASE,
+)
+SUB_SE_RE = re.compile(
+    r"(?:^|(?<![A-Za-z0-9]))S(\d{1,2})[\s\._\-]*E(?:P)?(\d{1,4})"
+    r"(?:[\s\._\-]*(?:[\-~～]|E(?:P)?)(\d{1,4}))?(?:v\d+)?(?![A-Za-z0-9])",
+    re.IGNORECASE,
+)
+SUB_SXE_RE = re.compile(r"(?:^|(?<![A-Za-z0-9x×]))(\d{1,2})x(\d{2,3})(?:v\d+)?(?![A-Za-z0-9x×])", re.IGNORECASE)
+SUB_SPE_RE = re.compile(r"(?:^|[\s\.\-_\[（\(])SPE(\d{1,2})(?:\b|[\s\.\-_\]）\)])", re.IGNORECASE)
+SUB_EP_MULTI_PREFIX_RE = re.compile(
+    r"(?: - |[#＃]|第|\[|(?i:(?:^|(?<![A-Za-z0-9]))EP?[\s\._]*)|[（\(])"
+    r"([0-9０-９]{1,3})(?:v\d+)?"
+    r"(?:([～\-・/])(?:[#＃]|第|(?i:EP?))?([0-9０-９]{1,3})(?:v\d+)?)?"
+    r"(?:話|回|幕| |\.|_|$|\]|[）\)]|(?=[「『【]))"
+)
+SUB_DAI_KANJI_EP_RE = re.compile(r"第\s*([0-9０-９一二三四五六七八九十百]{1,5})\s*(話|回|幕|首)(?:[\s\._\-]*|$|(?=[「『【]))")
+SUB_FOUR_DIGIT_EP_RE = re.compile(r"\s+-\s+(0\d{3}|1[0-8]\d{2})(?:\s+-\s+|\b)")
+SUB_BOGUS_EP_NUMS = frozenset({480, 576, 720, 1080, 1440, 1920, 2160})
+SUB_SECONDARY_EP_RE = re.compile(
+    r"^(?:"
+    r"第([一二三四五六七八九十百0-9０-９]+)(話|幕|首|回|章)(?:[\.\s_]*|(?=[「『【!！末：:])|$)|"
+    r"[#＃]?([一二三四五六七八九十百0-9０-９]+)(話|幕|首|回)(?:[\.\s_]+|(?=[「『【!！])|$)|"
+    r"[#＃]([0-9０-９]{1,4})(?:[\.\s_]+|(?=[「『【])|$)|"
+    r"([0-9０-９]{1,3})[\.\s_]+(?![0-9]|\s*(?:p|i|bit|fps|ch)\b)"
+    r")"
+)
+SUB_BRACKET_JUNK_RE = re.compile(
+    r"[\[\(][^\]\)]*?(?<!"
+    r"[A-Za-z0-9])(?:"
+    r"1080[pi]|720p|480p|576p|2160p|4K|FHD|HDTV|HEVC|AVC|AAC|FLAC|AC3|EAC3|DTS|MP3|Opus|"
+    r"x264|x265|H\.?264|H\.?265|XviD|DivX|WMV9|MPEG2|RMVB|MKV|AVI|MP4|10bit|8bit|Hi10p?|"
+    r"WEBRip|WEB-DL|WEBDL|WEB|BDRip|BDREMUX|BDSUP|BDSUB|BD|BluRay|Blu-ray|DVDRip|DVD-Rip|DVD|TVRip|"
+    r"FFF|JPN|JAP|CHS|CHT|ENG|JPSC|JPTC|SC[\s_]*JP|JP[\s_]*SC|Japanese[\s_]*Origin|"
+    r"TX|AMZN|NF|DSNP|CR|DDP|Amazon|Netflix|Hulu|Disney|Crunchyroll|Bilibili|Abema|dAnime|"
+    r"SubtitleTools|Sakurato|Retimed|Re-Timed|OCR\s*unchecked|Tesseract\s*OCR|Zoro\.to|SoftSub|HardSub|big5|gbk|utf-?8|ass|srt|ssa|"
+    r"1920x1080|1280x720|720x480|640x480|848x480|1440x1080|"
+    r"AT-X|BS11|BSP|NHK|NHKG|NHKE|TOKYO\s*MX|MBS|TBS"
+    r")(?![A-Za-z0-9])[^\]\)]*?[\]\)]",
+    re.IGNORECASE,
+)
+SUB_EXACT_BRACKET_JUNK_RE = re.compile(
+    r"\s*(?:[\[\(（](?:TV|BD|DVD|WEB|720|1080|480|AT-X|BS11|BSP|NHK|TOKYO\s*MX|MBS|TBS|JP|JA|JPN|SS|cc|sdh|hi|forced|jp_cn|ch_jp|jpn,\s*chi|日本語字幕|吹き替え|日本語|字|BS4K同時放送)[\]\)）]|\[(?:二|多|解|デ|閉|初|再|新|終)\])",
+    re.IGNORECASE,
+)
+SUB_SPLIT_JUNK_RE = re.compile(
+    r"(?: - |\s*\[|\(|\s+|[\._]|^|(?<=[」』】\)）]))(?:"
+    r"DUAL|DualAudio|1080[pi]|720p|480p|576p|2160p|HD1080[pi]|HD720p|1080pNF|720pNF|Horriblesubs720p|Horriblesubs1080p|"
+    r"WEB(?=$|[\s\._\-\]\)）])|WEBRip|WEB-DL|WEBDL|BDRip|BluRay|Blu-ray|BDSUP|BDSUB|BDsub|ITBD|BD(?=$|[\s\._\-\]\)）])|DVDRip|"
+    r"HDTV|HEVC|hevc10|x264|x265|H\.?264|H\.?265|10bit|8bit|Hi10p?|AAC|FLAC|AC3|JPSC|JPTC|Re-?Timed\s+for|"
+    r"Netflix|Amazon|AMZN|NF(?=$|[\s\._\-\[\(（\)）])|Hulu|UNCENSORED|REPACK|PROPER"
+    r")(?=$|[\s\._\-\[\(（\)）])",
+    re.IGNORECASE,
+)
+SUB_TECH_BRACKET_RE = re.compile(
+    r"[\[\(（【][^\]\)）】]*?(?:@|(?<![A-Za-z0-9])(?:hevc\d*|crf|\d{3,4}[x×]\d{3,4})(?![A-Za-z0-9]))[^\]\)）】]*[\]\)）】]",
+    re.IGNORECASE,
+)
+SUB_TECH_TAIL_RE = re.compile(
+    r"[\s\._\-]*(?<![A-Za-z0-9])(?:\d{3,4}-\d{3,4}@|\S*@KFMVFR|hevc\d+(?![A-Za-z])|\d{3,4}[x×]\d{3,4}(?![0-9]))",
+    re.IGNORECASE,
+)
+SUB_SEASON_WORD_RE = re.compile(
+    r"シーズン\s*([0-9０-９]{1,2})(?:\s*(?=[#＃第]|EP?\s*\d)|[-_]([0-9０-９]{1,3})[-_ ])", re.IGNORECASE
+)
+SUB_SPECIAL_MARKER_RE = re.compile(r"(総集編|特別編|特別篇|番外編|完結編|スペシャル)\s*(?=[#＃第]|EP?\s*\d| - )", re.IGNORECASE)
+SUB_ZH_WORD_RE = re.compile(r"字幕|简|繁|BIG5|中日|双语|雙語|汉化|卖萌", re.IGNORECASE)
+SUB_JPTVCLUB_RE = re.compile(r"[\s_\-]*\d{4}-\d{2}-\d{2}[\s_\-]*JPTVclub$", re.IGNORECASE)
+SUB_BARE_LANG_RE = re.compile(
+    r"^(?:ja|jp|jpn|jap|sc|tc|jpsc|jptc|ja[\-_ ]jp|ja[\-_ ]en|jpn[\-_ ]en|chs|cht|en|eng|big5|retimed)$",
+    re.IGNORECASE,
+)
+SUB_TRAILING_LANG_RE = re.compile(r"(?i)(?:^|\s+)(?:ja|jp|jpn|jap|jpsc|jptc|ja[\-_]jp|ja[\-_]en)(?:\s*\[(?:cc|sdh|hi)\])?$")
+_ROMAN = {'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5, 'VI': 6, 'VII': 7, 'VIII': 8, 'IX': 9, 'X': 10, 'XI': 11, 'XII': 12}
+
+
+def _wrapped_by(s, open_ch, close_ch):
+    if len(s) < 2 or s[0] != open_ch or s[-1] != close_ch:
+        return False
+    depth = 0
+    for i, ch in enumerate(s):
+        if ch == open_ch:
+            depth += 1
+        elif ch == close_ch:
+            depth -= 1
+            if depth == 0:
+                return i == len(s) - 1
+    return False
+
+
+def _strip_outer_brackets(s):
+    s = s.strip(" ._")
+    while s:
+        if s[0] in " ._)]":
+            s = s[1:].lstrip(" ._")
+        elif s[-1] in " ._([":
+            s = s[:-1].rstrip(" ._")
+        elif s.endswith("()") or s.endswith("[]"):
+            s = s[:-2].rstrip(" ._")
+        elif s.startswith("()") or s.startswith("[]"):
+            s = s[2:].lstrip(" ._")
+        elif _wrapped_by(s, "(", ")") or _wrapped_by(s, "[", "]"):
+            s = s[1:-1].strip(" ._")
+        elif s.startswith("(") and s.count("(") > s.count(")"):
+            s = s[1:].lstrip(" ._")
+        elif s.endswith(")") and s.count(")") > s.count("("):
+            s = s[:-1].rstrip(" ._")
+        elif s.startswith("[") and s.count("[") > s.count("]"):
+            s = s[1:].lstrip(" ._")
+        elif s.endswith("]") and s.count("]") > s.count("["):
+            s = s[:-1].rstrip(" ._")
+        else:
+            break
+    return s
+
+
+def _episode_stem(filename):
+    s = filename
+    for _ in range(2):
+        s = SUB_EXT_RE.sub("", s)
+    for _ in range(2):
+        s = SUB_LANG_SUFFIX_RE.sub("", s)
+        s = SUB_CRC_RE.sub("", s)
+    while True:
+        m = SUB_LEADING_GROUP_RE.match(s)
+        if not m:
+            break
+        inner = m.group(1).strip()
+        rest = s[m.end():].lstrip()
+        if not rest.strip() or SUB_PURE_EP_BRACKET_RE.match(inner) or SUB_SEASON_IN_BRACKET_RE.search(inner):
+            break
+        s = rest
+    return s
+
+
 def format_episode_title(relpath):
     import utils
     parts = re.split(r"[\\/]", relpath)
     folder_name = parts[0]
-    filename = parts[-1]
-    if filename.endswith('.srt'): filename = filename[:-4]
-    season_ep = ''
-    title = ''
-    match_se = re.search(r'\bS(\d+)E(\d+)\b', filename, re.IGNORECASE)
-    if match_se:
-        s = int(match_se.group(1))
-        e = int(match_se.group(2))
-        season_ep = f'{to_fullwidth(s)}期{to_fullwidth(e, 2)}話'
-        title_part = filename[match_se.end():]
-        title_part = re.split(r'\.(?:WEBRip|WEB-DL|BD|1080p|720p)', title_part, flags=re.IGNORECASE)[0]
-        title_part = title_part.strip(' ._')
-        
-        m_ep = re.match(r'^([#＃第])?([一二三四五六七八九十百0-9０-９]+)(話|幕|首)?[\.\s]*', title_part)
+    raw_filename = parts[-1]
+    filename = _episode_stem(raw_filename)
+    orig_stem = utils.clean_sub_stem(raw_filename)
+    stem_cleaned_more = filename != orig_stem
+
+    season_ep = ""
+    title = ""
+
+    match_se = SUB_SE_RE.search(filename)
+    match_sxe = None if match_se else SUB_SXE_RE.search(filename)
+    if match_sxe:
+        s_cand, e_cand = int(match_sxe.group(1)), int(match_sxe.group(2))
+        if not (1 <= s_cand <= 30 and 1 <= e_cand <= 250) or (s_cand == 3 and e_cand == 3 and "3x3" in filename.lower()):
+            match_sxe = None
+
+    if match_se or match_sxe:
+        if match_se:
+            s = int(match_se.group(1))
+            e = int(match_se.group(2))
+            e2_raw = int(match_se.group(3)) if match_se.group(3) else None
+            if e2_raw is not None and e < e2_raw <= e + 12:
+                e2 = e2_raw
+                se_end = match_se.end()
+            else:
+                e2 = None
+                se_end = match_se.end(2)
+                if filename[se_end:match_se.end()].lower().startswith("v"):
+                    se_end = match_se.end()
+        else:
+            s = int(match_sxe.group(1))
+            e = int(match_sxe.group(2))
+            e2 = None
+            se_end = match_sxe.end()
+
+        if e2 is not None:
+            season_ep = f"{to_fullwidth(s)}期{to_fullwidth(e, 2)}～{to_fullwidth(e2, 2)}話"
+        else:
+            season_ep = f"{to_fullwidth(s)}期{to_fullwidth(e, 2)}話"
+
+        title_part = filename[se_end:]
+        is_fractional = bool(re.match(r"^\.\d+\b", title_part))
+        title_part = re.split(r"\.(?:WEBRip|WEB-DL|WEBDL|BDRip|BluRay|DVDRip|BD|2160p|1080[pi]|720p|576p|480p)",
+                              title_part, flags=re.IGNORECASE)[0]
+        title_part = title_part.strip(" ._")
+
+        m_ep = None if is_fractional else SUB_SECONDARY_EP_RE.match(title_part)
         if m_ep:
-            ep_num_str = m_ep.group(2)
-            rest = title_part[m_ep.end():].strip(' ._')
-            if re.match(r'^[0-9０-９]+$', ep_num_str):
-                ep_num = int(ep_num_str)
+            ep_num_str = m_ep.group(1) or m_ep.group(3) or m_ep.group(5) or m_ep.group(6)
+            counter = m_ep.group(2) or m_ep.group(4) or ""
+            rest = title_part[m_ep.end():].strip(" ._")
+            ep_hw = ep_num_str.translate(FW_TO_HW_DIGITS)
+            if ep_hw.isdigit():
+                ep_num = int(ep_hw)
                 if ep_num == e:
                     title_part = rest
-                else:
-                    if not rest:
-                        title_part = f"{to_fullwidth(ep_num)}話"
-                    else:
-                        title_part = f"{to_fullwidth(ep_num)}話｜{rest}"
+                elif counter not in ("回", "章"):
+                    title_part = f"{to_fullwidth(ep_num)}話｜{rest}" if rest else f"{to_fullwidth(ep_num)}話"
             else:
                 title_part = rest
-                
-        title_part = re.sub(r'^(?:最終話|最終章(?:\.前編|\.後編)?)[\.\s]*', '', title_part)
-        title_part = re.sub(r'^【.*?】', '', title_part)
-        title_part = re.split(r'(?:WEBRip|WEB-DL|BD|1080p|720p)', title_part, flags=re.IGNORECASE)[0]
-        title = title_part.strip(' ._')
-        title = title.replace('.', ' ').replace('_', ' ')
-    else:
-        s_str = ''
-        match_s = re.search(r'([０-９0-9]+)(?:st|nd|rd|th)\b', filename, re.IGNORECASE)
-        if match_s:
-            trans = str.maketrans('０１２３４５６７８９', '0123456789')
-            s = int(match_s.group(1).translate(trans))
-            s_str = f'{to_fullwidth(s)}期'
-            filename = filename[:match_s.start()] + filename[match_s.end():]
 
-        match_jp_se = re.search(r'第([０-９0-9]+)(?:シリーズ|期)(.*?)[（\(]([０-９0-9]{2,3})[）\)]', filename)
+        title_part = re.sub(r"^(?:最終話|最終章(?:\.前編|\.後編)?)[\.\s]*", "", title_part)
+        title_part = re.sub(r"^【.*?】", "", title_part)
+        title_part = re.split(r"(?:WEBRip|WEB-DL|WEBDL|BDRip|BluRay|DVDRip|BD|2160p|1080[pi]|720p|576p|480p)",
+                              title_part, flags=re.IGNORECASE)[0]
+        title = title_part.strip(" ._").replace(".", " ").replace("_", " ")
+    else:
+        s_str = ""
+        match_s = re.search(r"([０-９0-9]+)(?:st|nd|rd|th)\b", filename, re.IGNORECASE)
+        if match_s:
+            s_str = f"{to_fullwidth(match_s.group(1).translate(FW_TO_HW_DIGITS))}期"
+            filename = filename[:match_s.start()] + filename[match_s.end():]
+        else:
+            match_s = SUB_SEASON_WORD_RE.search(filename)
+            if match_s:
+                s_str = f"{to_fullwidth(match_s.group(1).translate(FW_TO_HW_DIGITS))}期"
+                ep_here = f" ＃{match_s.group(2)} " if match_s.group(2) else " "
+                filename = filename[:match_s.start()] + ep_here + filename[match_s.end():]
+
+        match_jp_se = re.search(r"第([０-９0-9]+)(?:シリーズ|期)(.*?)[（\(]([０-９0-9]{2,3})[）\)]", filename)
         if match_jp_se:
-            s = int(match_jp_se.group(1))
+            s = int(match_jp_se.group(1).translate(FW_TO_HW_DIGITS))
             extra = match_jp_se.group(2).strip()
-            e = int(match_jp_se.group(3))
-            season_ep = f'{to_fullwidth(s)}期{to_fullwidth(e, 2)}話'
+            e = int(match_jp_se.group(3).translate(FW_TO_HW_DIGITS))
+            season_ep = f"{to_fullwidth(s)}期{to_fullwidth(e, 2)}話"
             title_part = filename[match_jp_se.end():].strip()
-            title_part = re.split(r'(?: - | \[)', title_part)[0]
-            title = title_part.strip()
+            title = re.split(r"(?: - | \[)", title_part)[0].strip()
             if extra:
                 folder_name += extra
         else:
-            match_ova = re.search(r'(OVA\s+.*?)(?:\s*\(|$)', filename, re.IGNORECASE)
+            match_ova = re.search(r"\b(OVA\s+.*?)(?:\s*\(|$)", filename, re.IGNORECASE)
             if match_ova:
                 title = match_ova.group(1).strip()
-            match_ep = re.search(r'(?: - |[#＃]|第|\[|(?i:\bEP?)|[（\(])(\d{1,3})(?:([～\-])(\d{1,3}))?(?:話| |\.|$|\]|[）\)])', filename)
-            if match_ep:
-                e1 = int(match_ep.group(1))
-                if match_ep.group(2):
-                    e2 = int(match_ep.group(3))
-                    season_ep = f'{to_fullwidth(e1, 2)}{match_ep.group(2)}{to_fullwidth(e2, 2)}話'
+
+            match_spe = SUB_SPE_RE.search(filename)
+            match_4d = None if match_spe else SUB_FOUR_DIGIT_EP_RE.search(filename)
+            if match_4d and "0080" in match_4d.group(1) and "Gundam" in filename:
+                match_4d = None
+
+            valid_ep_match = None
+            for m_cand in SUB_EP_MULTI_PREFIX_RE.finditer(filename):
+                v1 = int(m_cand.group(1).translate(FW_TO_HW_DIGITS))
+                if m_cand.group(0)[:1] in "[(（" and (v1 in SUB_BOGUS_EP_NUMS or 1900 <= v1 <= 2030):
+                    continue
+                valid_ep_match = m_cand
+                break
+
+            match_kanji_dai = None if (match_spe or match_4d or valid_ep_match) else SUB_DAI_KANJI_EP_RE.search(filename)
+
+            if match_spe or match_4d:
+                m = match_spe or match_4d
+                season_ep = s_str + f"{to_fullwidth(int(m.group(1)), 2)}話"
+                title_part = filename[m.end():].strip(" ._-")
+                title = re.split(r"(?: - | \[)", title_part)[0].strip()
+            elif valid_ep_match:
+                e1 = int(valid_ep_match.group(1).translate(FW_TO_HW_DIGITS))
+                sep = valid_ep_match.group(2)
+                if valid_ep_match.group(3):
+                    e2 = int(valid_ep_match.group(3).translate(FW_TO_HW_DIGITS))
+                    norm_sep = "～" if sep in ("～", "・", "/") else "-"
+                    season_ep = f"{to_fullwidth(e1, 2)}{norm_sep}{to_fullwidth(e2, 2)}話"
                 else:
-                    season_ep = f'{to_fullwidth(e1, 2)}話'
-                    
-                if s_str: season_ep = s_str + season_ep
-                
-                title_part = filename[match_ep.end():].strip(' ._-')
-                if not title_part:
-                    title_part = filename[:match_ep.start()].strip(' ._-')
-                title_part = re.split(r'(?: - | \[)', title_part)[0]
-                title = title_part.strip()
-                
-            if not match_ep:
-                match_word_ep = re.search(r'\b(?:Karte|Stage|Phase|Episode|ACT)\s+(\d{1,3}|I{1,3}|IV|V|VI{1,3}|IX|X{1,2}|XI{1,2})\b', filename, re.IGNORECASE)
+                    season_ep = f"{to_fullwidth(e1, 2)}話"
+                season_ep = s_str + season_ep
+
+                title_part = filename[valid_ep_match.end():].strip(" ._-")
+                if not title_part and orig_stem.endswith(filename[valid_ep_match.start():]):
+                    title_part = filename[:valid_ep_match.start()].strip(" ._-")
+                    if re.fullmatch(r"(?:\s*\[[^\]]*\])+", title_part) or (
+                            stem_cleaned_more and title_part.lower() == folder_name.strip(" ._-").lower()):
+                        title_part = ""
+                title = re.split(r"(?: - | \[)", title_part)[0].strip()
+            elif match_kanji_dai:
+                e1 = parse_int_or_kanji(match_kanji_dai.group(1))
+                if e1 is not None:
+                    season_ep = s_str + f"{to_fullwidth(e1, 2)}話"
+                    title_part = filename[match_kanji_dai.end():].strip(" ._-")
+                    title = re.split(r"(?: - | \[)", title_part)[0].strip()
+
+            if season_ep:
+                m_sp = SUB_SPECIAL_MARKER_RE.search(filename)
+                if m_sp and m_sp.group(1) not in title:
+                    title = m_sp.group(1) + title
+
+            if not season_ep:
+                match_word_ep = re.search(
+                    r"\b(?:Karte|Stage|Phase|Episode|ACT)\s+(\d{1,3}|I{1,3}|IV|V|VI{1,3}|IX|X{1,2}|XI{1,2})\b",
+                    filename, re.IGNORECASE)
                 if match_word_ep:
-                    val_str = match_word_ep.group(1).upper()
-                    if val_str.isdigit():
-                        e1 = int(val_str)
-                    else:
-                        roman_map = {'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5, 'VI': 6, 'VII': 7, 'VIII': 8, 'IX': 9, 'X': 10, 'XI': 11, 'XII': 12}
-                        e1 = roman_map.get(val_str, 1)
-                        
-                    season_ep = f'{to_fullwidth(e1, 2)}話'
-                    if s_str: season_ep = s_str + season_ep
-                    
-                    title_part = filename[match_word_ep.end():].strip(' ._-')
-                    title_part = re.sub(r'^OVA\s+', '', title_part, flags=re.IGNORECASE)
-                    title_part = re.split(r'(?: - | \[)', title_part)[0]
-                    title = title_part.strip()
-                    
+                    val = match_word_ep.group(1).upper()
+                    e1 = int(val) if val.isdigit() else _ROMAN.get(val, 1)
+                    season_ep = s_str + f"{to_fullwidth(e1, 2)}話"
+                    title_part = filename[match_word_ep.end():].strip(" ._-")
+                    title_part = re.sub(r"^OVA\s+", "", title_part, flags=re.IGNORECASE)
+                    title = re.split(r"(?: - | \[)", title_part)[0].strip()
+
             if not title and not season_ep:
                 title = filename
+
     if title:
-        title = re.sub(r'[\[\(][^\]\)]*?(?:1080p|720p|FHD|HEVC|AAC|x264|WEBRip|WEB-DL|BD|FFF|Hi10|JPN|TX|AMZN|NF|WEB|H\.264|DDP|SubtitleTools|Sakurato)[^\]\)]*?[\]\)]', '', title, flags=re.IGNORECASE).strip()
-        title = re.split(r'(?: - | \[|\()?(?:DUAL|1080p|720p|WEB\b|WEBRip|WEB-DL|BD|HEVC|Netflix|Amazon|Hulu)', title, flags=re.IGNORECASE)[0].strip()
-        title = re.sub(r'\[字\]', '', title).strip()
-        title = re.sub(r'\[映\]', '', title).strip()
-        title = title.strip(' ._[]()')
-        title = re.sub(r'\s+-\s*$', '', title)
-        title = re.sub(r'^\s*-\s+', '', title)
-        title = title.replace('.', ' ').replace('_', ' ')
-        
-        title = re.sub(r'(?i)\bChapter\s*\d+\b', '', title)
-        title = re.sub(r'(?i)\s+(?:ja|jp)$', '', title)
-        title = re.sub(r'\b\d{3,5}-(DLC)', r'\1', title, flags=re.IGNORECASE)
-        
+        t = SUB_BRACKET_JUNK_RE.sub("", title).strip()
+        t = SUB_EXACT_BRACKET_JUNK_RE.sub("", t).strip()
+        parts_junk = SUB_SPLIT_JUNK_RE.split(t, maxsplit=1)
+        t = parts_junk[0].strip()
+        if t and len(parts_junk) > 1:
+            for inner in re.findall(r"\[([^\[\]]+)\]", parts_junk[-1]):
+                if (re.search(r"[぀-ヿ㐀-鿿]{2}", inner)
+                        and not SUB_BRACKET_JUNK_RE.search(f"[{inner}]")
+                        and not SUB_TECH_BRACKET_RE.search(f"[{inner}]")
+                        and not SUB_ZH_WORD_RE.search(inner)):
+                    t = f"{t}（{inner.strip()}）"
+                    break
+        t = SUB_JPTVCLUB_RE.sub("", t).strip()
+        t = re.sub(r"^【テレビ東京オンデマンド】[\.\s]*", "", t).strip()
+        t = re.sub(r"\[字\]", "", t).strip()
+        t = re.sub(r"\[映\]", "", t).strip()
+        t = SUB_TECH_BRACKET_RE.sub("", t).strip()
+        t = SUB_TECH_TAIL_RE.split(t)[0].strip()
+
+        title = _strip_outer_brackets(t)
+        title = re.sub(r"\s+-\s*$", "", title)
+        title = re.sub(r"^\s*-\s+", "", title)
+        if re.fullmatch(r"-\s*", title):
+            title = ""
+        title = title.replace(".", " ").replace("_", " ")
+
+        title = re.sub(r"(?i)\bChapter\s*\d+\b", "", title)
+        after_lang = SUB_TRAILING_LANG_RE.sub("", title)
+        if SUB_BARE_LANG_RE.match(after_lang.strip()):
+            after_lang = ""
+        old_after_lang = re.sub(r"(?i)\s+(?:ja|jp)$", "", title)
+        title = after_lang.strip() if after_lang != old_after_lang else old_after_lang
+        title = re.sub(r"\b\d{3,5}-(DLC)", r"\1", title, flags=re.IGNORECASE)
+
         if title:
             title = utils.convert_hw_katakana(title)
             for old, new in utils.SUBS_STR_REPLACEMENTS:
                 title = title.replace(old, new)
-            title = title.replace('(', '（').replace(')', '）')
-            
+            title = title.replace("(", "（").replace(")", "）")
             if title:
-                return f'{folder_name}｜{title}｜{season_ep}' if season_ep else f'{folder_name}｜{title}'
+                return f"{folder_name}｜{title}｜{season_ep}" if season_ep else f"{folder_name}｜{title}"
     if season_ep:
-        return f'{folder_name}｜{season_ep}'
+        return f"{folder_name}｜{season_ep}"
     return folder_name or filename
+
+
 GLOBAL_BOOK_AUTHORS = {}
 
 def load_book_authors(db_epub):
@@ -1007,37 +1266,6 @@ def load_book_authors(db_epub):
                     GLOBAL_BOOK_AUTHORS[r["title"]] = r["author"]
         except Exception:
             pass
-
-SERIES_PREFIXES = [
-    r'^國體詳解双書\s*',
-    r'^ＮＨＫ出版\s*学びのきほん\s*',
-    r'^NHK出版\s*学びのきほん\s*',
-    r'^ＮＨＫ\s*「?１００分ｄｅ名著」?\s*ブックス?\s*',
-    r'^NHK\s*「?100分de名著」?\s*ブックス?\s*',
-    r'^別冊ＮＨＫ１００分de名著\s*',
-    r'^別冊NHK100分de名著\s*',
-    r'^岩波少年文庫\s*\d*\s*',
-    r'^P[\+＋]D\s*BOOKS\s*',
-    r'^古典現代語訳叢書\s*',
-    r'^ことば選び辞典\s*',
-    r'^古典文学の世界\s*',
-    r'^日本語シリーズ\s*',
-    r'^桑原岩雄著作復刻選\s*',
-]
-
-def clean_book_title(title: str) -> str:
-    if not title:
-        return ""
-    t = title.strip()
-    for sp in SERIES_PREFIXES:
-        t = re.sub(sp, '', t, flags=re.IGNORECASE)
-    t = re.sub(r'[\(\（\[\［\【\〔][^\(\（\[\［\【\〔\)\）\]\］\】\〕]*(?:講談社文庫|講談社学術文庫|講談社現代新書|講談社文芸文庫|新潮文庫|文春文庫|中公文庫|中公新書|ちくま文庫|ちくま新書|ちくま学芸文庫|角川ソフィア文庫|角川文庫|岩波新書|岩波文庫|岩波少年文庫|扶桑社ＢＯＯＫＳ|扶桑社BOOKS|アヌーク出版|大学受験叢書|集英社文庫|電子特別版|２２世紀アート|P[\+＋]D\s*BOOKS)[^\(\（\[\［\【\〔\)\）\]\］\】\〕]*[\)\）\]\］\】\〕]', '', t, flags=re.IGNORECASE)
-    t = re.sub(r'[\(\（\[\［\【\〔][^\(\（\[\［\【\〔\)\）\]\］\】\〕]*[\)\）\]\］\】\〕]', '', t)
-    t = re.sub(r'\s*ビギナーズ・クラシックス\s*日本の古典.*$', '', t)
-    t = re.sub(r'\s*古典現代語訳叢書.*$', '', t)
-    t = re.sub(r'^\d+\s*新・古文入門', '新・古文入門', t)
-    t = re.sub(r'[ \t　]+', ' ', t).strip()
-    return t
 
 def format_book_title(file_key, db_epub=None):
     if file_key in GLOBAL_BOOK_TITLES:
@@ -1057,7 +1285,7 @@ def format_book_title(file_key, db_epub=None):
             author = m.group(1).strip()
             book_title = m.group(2).strip()
             
-    book_title = clean_book_title(book_title)
+    book_title = utils.clean_book_title(book_title)
     book_title = utils.convert_hw_katakana(book_title)
     for old, new in utils.EPUB_STR_REPLACEMENTS:
         book_title = book_title.replace(old, new)
@@ -1072,7 +1300,7 @@ def format_book_title(file_key, db_epub=None):
         for old, new in utils.EPUB_STR_REPLACEMENTS:
             author = author.replace(old, new)
 
-    if ch_clean in (book_title, '本文', '本編', ''):
+    if ch_clean in (book_title, '本文', '本編', '') or utils.BOOK_RAW_FILE_CH_RE.search(ch_clean):
         ch_clean = ''
         
     if author:
@@ -1164,12 +1392,125 @@ def _result_cache_page(entry, offset, limit, targets):
     return chunk
 
 
+_RESULT_FLIGHT = {}
+_RESULT_FLIGHT_LOCK = threading.Lock()
+_ABORTED = object()
+
+
+def _result_flight_join(key, abort_flag, held):
+    while True:
+        with _RESULT_FLIGHT_LOCK:
+            ev = _RESULT_FLIGHT.get(key)
+            if ev is None:
+                ev = _RESULT_FLIGHT[key] = threading.Event()
+                held.append((key, ev))
+                return None
+        while not ev.wait(0.25):
+            if abort_flag and abort_flag[0]:
+                return _ABORTED
+        entry = _result_cache_get(key)
+        if entry is not None:
+            return entry
+
+
+def _result_flight_release(held):
+    with _RESULT_FLIGHT_LOCK:
+        while held:
+            key, ev = held.pop()
+            if _RESULT_FLIGHT.get(key) is ev:
+                del _RESULT_FLIGHT[key]
+            ev.set()
+
+
+SEARCH_COST = {"subtitles": 9e-6, "epubs": 13e-6, "pass": 15e-6, "like": 0.6e-6, "fixed": 0.5}
+_SEARCH_PROGRESS = {}
+_SEARCH_PROGRESS_LOCK = threading.Lock()
+
+
+def _search_targets(db_subs, db_epub, media):
+    targets = []
+    if media in ('all', 'subs') and db_subs is not None:
+        targets.append(('subtitles', db_subs, 'subs'))
+    if media in ('all', 'epub') and db_epub is not None:
+        targets.append(('epubs', db_epub, 'epub'))
+    if not targets and db_subs is not None:
+        targets.append(('subtitles', db_subs, 'subs'))
+    return targets
+
+
+def _learn_cost(name, seconds, rows):
+    if rows >= 20000 and seconds > 0:
+        SEARCH_COST[name] = 0.7 * SEARCH_COST[name] + 0.3 * (seconds / rows)
+
+
+def search_progress(db_subs, db_epub, q, sort="recommended", seed=None, media="all", exact=False,
+                    folder=None, file=None):
+    import time
+    key = _result_cache_key(q, sort, seed, media, exact, folder, file,
+                            _search_targets(db_subs, db_epub, media))
+    with _SEARCH_PROGRESS_LOCK:
+        p = _SEARCH_PROGRESS.get(key)
+    if p is None:
+        return {"running": False}
+    now = time.monotonic()
+    if p.get("expected_rows") is None:
+        conns = {"subtitles": db_subs, "epubs": db_epub}
+        rows = {}
+        for table, sql, params in p["counts"]:
+            conn = conns.get(table)
+            try:
+                if sql is None:
+                    rows[table] = ("like", conn.execute(f"SELECT MAX(rowid) FROM {table}").fetchone()[0] or 0)
+                else:
+                    rows[table] = ("match", conn.execute(sql, params).fetchone()[0])
+            except (sqlite3.Error, AttributeError):
+                rows[table] = ("match", 0)
+        p["expected_rows"] = rows
+    rows = p["expected_rows"]
+    matched = sum(n for kind, n in rows.values() if kind == "match")
+    sql_left = 0.0
+    if p["phase"] == "query":
+        sql_total = sum(n * SEARCH_COST["like" if kind == "like" else table] for table, (kind, n) in rows.items())
+        sql_done = sum(p["sql_seconds"].values())
+        in_table = now - p["table_start"]
+        cur = rows.get(p["table"])
+        cur_total = cur[1] * SEARCH_COST["like" if cur[0] == "like" else p["table"]] if cur else 0
+        rest = sum(n * SEARCH_COST["like" if kind == "like" else t]
+                   for t, (kind, n) in rows.items() if t not in p["sql_seconds"] and t != p["table"])
+        sql_left = max(cur_total - in_table, 0.1 * cur_total) + rest
+        pass_left = matched * SEARCH_COST["pass"]
+    elif p["phase"] == "pass":
+        done, total = p["pass_done"], p["pass_total"]
+        spent = now - p["pass_start"]
+        rate = spent / done if done > 1000 else SEARCH_COST["pass"]
+        pass_left = (total - done) * rate
+    else:
+        pass_left = 0.0
+    return {"running": True, "elapsed": round(now - p["start"], 1),
+            "remaining": round(sql_left + pass_left + SEARCH_COST["fixed"], 1)}
+
+
 def get_search_results(db, q, folders=None, sort='recommend', folder=None, exact=False, abort_flag=None, limit=500, offset=0, file=None, db_epub=None, media='all', seed=None):
+    held = []
+    progress = []
+    try:
+        return _search_results(db, q, folders, sort, folder, exact, abort_flag, limit, offset,
+                               file, db_epub, media, seed, held, progress)
+    finally:
+        with _SEARCH_PROGRESS_LOCK:
+            for key in progress:
+                _SEARCH_PROGRESS.pop(key, None)
+        _result_flight_release(held)
+
+
+def _search_results(db, q, folders, sort, folder, exact, abort_flag, limit, offset, file, db_epub, media, seed, held, progress=None):
+    import time
     neg_info = []
     clean_q = ""
     content_bases = []
     readings = []
     cache_key = cached = cached_page = None
+    entry = None
 
     if isinstance(db, (tuple, list)):
         db_subs = db[0] if len(db) > 0 else None
@@ -1181,13 +1522,7 @@ def get_search_results(db, q, folders=None, sort='recommend', folder=None, exact
     if db_epub is not None:
         load_book_authors(db_epub)
 
-    targets = []
-    if media in ('all', 'subs') and db_subs is not None:
-        targets.append(('subtitles', db_subs, 'subs'))
-    if media in ('all', 'epub') and db_epub is not None:
-        targets.append(('epubs', db_epub, 'epub'))
-    if not targets and db_subs is not None:
-        targets.append(('subtitles', db_subs, 'subs'))
+    targets = _search_targets(db_subs, db_epub, media)
 
     def get_sort_key(f):
         import utils
@@ -1299,15 +1634,18 @@ def get_search_results(db, q, folders=None, sort='recommend', folder=None, exact
 
         cache_key = _result_cache_key(q, sort, seed, media, exact, folder, file, targets)
         cached = _result_cache_get(cache_key)
+        if cached is None and cache_key is not None:
+            cached = _result_flight_join(cache_key, abort_flag, held)
+            if cached is _ABORTED:
+                return [], {}, 0, [], False
         cached_page = _result_cache_page(cached, offset, limit, targets) if cached is not None else None
         if cached_page is None:
             cached = None
 
-        for table_name, db_conn, m_type in (targets if cached is None else ()):
-            if db_conn is None: continue
+        def build_where(table_name):
             wheres = []
             where_params = []
-            
+
             if is_exact_phrase:
                 match_str = " AND ".join(sql_bases)
                 if match_str:
@@ -1357,6 +1695,32 @@ def get_search_results(db, q, folders=None, sort='recommend', folder=None, exact
             elif folder and not q:
                 wheres.append("(file LIKE ? OR file LIKE ?)")
                 where_params.extend([folder + "\\%", folder + "/%"])
+            match = None
+            if wheres and "MATCH" in wheres[0]:
+                n_params = wheres[0].count("?")
+                match = (f"SELECT count(*) FROM {table_name} WHERE {wheres[0]}", where_params[:n_params])
+            return wheres, where_params, match
+
+        if cached is None and cache_key is not None and progress is not None:
+            now = time.monotonic()
+            entry = {"start": now, "phase": "query", "table": None, "table_start": now,
+                     "sql_seconds": {}, "pass_done": 0, "pass_total": 0, "pass_start": None,
+                     "expected_rows": None,
+                     "counts": [(t, *(build_where(t)[2] or (None, None))) for t, c, _ in targets if c is not None]}
+            with _SEARCH_PROGRESS_LOCK:
+                _SEARCH_PROGRESS[cache_key] = entry
+            progress.append(cache_key)
+        else:
+            entry = None
+
+        for table_name, db_conn, m_type in (targets if cached is None else ()):
+            if db_conn is None: continue
+            if abort_flag and abort_flag[0]:
+                return [], {}, 0, [], False
+            wheres, where_params, _ = build_where(table_name)
+            if entry is not None:
+                entry["table"], entry["table_start"] = table_name, time.monotonic()
+                rows_before = len(all_candidate_rows)
 
             where_clause = f"WHERE ({' AND '.join(wheres)})"
             if sort == "chrono":
@@ -1371,6 +1735,8 @@ def get_search_results(db, q, folders=None, sort='recommend', folder=None, exact
                     rd["media_type"] = m_type
                     all_candidate_rows.append(rd)
             except sqlite3.OperationalError as e:
+                if "interrupted" in str(e):
+                    raise
                 fallback_wheres = ["line LIKE ?"]
                 fallback_params = [f"%{clean_q}%"]
                 for n in neg_info:
@@ -1395,15 +1761,24 @@ def get_search_results(db, q, folders=None, sort='recommend', folder=None, exact
                         all_candidate_rows.append(rd)
                 except Exception:
                     pass
+            if entry is not None:
+                spent = time.monotonic() - entry["table_start"]
+                entry["sql_seconds"][table_name] = spent
+                if "MATCH" in wheres[0]:
+                    _learn_cost(table_name, spent, len(all_candidate_rows) - rows_before)
 
     results = []
     folder_counts = {}
     global_total = 0
     valid_results = []
     
+    if entry is not None:
+        entry["phase"], entry["pass_total"], entry["pass_start"] = "pass", len(all_candidate_rows), time.monotonic()
     for i, row_dict in enumerate(all_candidate_rows):
         if abort_flag and abort_flag[0] and i % 100 == 0:
             return [], {}, 0, [], False
+        if entry is not None and i % 2000 == 0:
+            entry["pass_done"] = i
             
         line = row_dict["line"]
         clean_text = row_dict["clean_text"]
@@ -1456,6 +1831,9 @@ def get_search_results(db, q, folders=None, sort='recommend', folder=None, exact
         if not folder or folder_name == folder:
             valid_results.append(row_dict)
 
+    if entry is not None:
+        entry["phase"] = "render"
+        _learn_cost("pass", time.monotonic() - entry["pass_start"], len(all_candidate_rows))
     if sort == "desc":
         valid_results.sort(key=lambda x: x["char_count"], reverse=True)
     elif sort == "asc":
@@ -1473,6 +1851,7 @@ def get_search_results(db, q, folders=None, sort='recommend', folder=None, exact
         n_valid = len(cached["rowid"])
     else:
         _result_cache_put(cache_key, valid_results, folder_counts)
+        _result_flight_release(held)
         paginated_chunk = valid_results[offset : offset + limit]
         n_valid = len(valid_results)
     
@@ -1519,12 +1898,70 @@ def _library_sort_key(name):
 
 def get_media_library(db_subs, db_epub):
     key = db_fingerprint(db_subs, db_epub)
+    cached = _media_library_cached(key)
+    if cached is not None:
+        return cached
+    with _MEDIA_LIBRARY_LOCK:
+        cached = _media_library_cached(key)
+        if cached is not None:
+            return cached
+        return _compute_media_library(db_subs, db_epub, key)
+
+
+MEDIA_SECONDS_PER_GB = 3.2
+_MEDIA_COMPUTE = {"started": None, "expected": None}
+
+
+def _media_cache_path():
+    return os.path.join(os.path.dirname(os.path.abspath(paths.subs_db())), "media_cache.json")
+
+
+def _media_cache_read():
+    try:
+        import json
+        with open(_media_cache_path(), encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def _media_library_cached(key):
     if key in _MEDIA_LIBRARY:
         return _MEDIA_LIBRARY[key]
-    with _MEDIA_LIBRARY_LOCK:
-        if key in _MEDIA_LIBRARY:
-            return _MEDIA_LIBRARY[key]
-        return _compute_media_library(db_subs, db_epub, key)
+    data = _media_cache_read()
+    if data and data.get("key") == repr(key) and isinstance(data.get("items"), list):
+        _MEDIA_LIBRARY.clear()
+        _MEDIA_LIBRARY[key] = data["items"]
+        return data["items"]
+    return None
+
+
+def _db_bytes(*conns):
+    total = 0
+    for entry in db_fingerprint(*conns):
+        if entry:
+            total += sum(st[1] for st in entry[1:] if st)
+    return total
+
+
+def media_library_status(db_subs, db_epub):
+    import time
+    key = db_fingerprint(db_subs, db_epub)
+    if _media_library_cached(key) is not None:
+        return {"ready": True}
+    if _MEDIA_COMPUTE["started"] is None and not _MEDIA_LIBRARY_LOCK.locked():
+        threading.Thread(target=warm_media_library, daemon=True).start()
+    started = _MEDIA_COMPUTE["started"] or time.monotonic()
+    expected = _MEDIA_COMPUTE["expected"] or _media_expected_seconds(db_subs, db_epub)
+    elapsed = time.monotonic() - started
+    return {"ready": False, "elapsed": round(elapsed, 1),
+            "remaining": round(max(expected - elapsed, 1.0), 1)}
+
+
+def _media_expected_seconds(db_subs, db_epub):
+    data = _media_cache_read() or {}
+    rate = data.get("seconds_per_gb") or MEDIA_SECONDS_PER_GB
+    return rate * _db_bytes(db_subs, db_epub) / 1024 ** 3
 
 
 def warm_media_library():
@@ -1543,6 +1980,32 @@ def warm_media_library():
 
 
 def _compute_media_library(db_subs, db_epub, key):
+    import time
+    _MEDIA_COMPUTE["started"] = time.monotonic()
+    _MEDIA_COMPUTE["expected"] = _media_expected_seconds(db_subs, db_epub)
+    try:
+        out = _count_media_library(db_subs, db_epub)
+    finally:
+        seconds = time.monotonic() - _MEDIA_COMPUTE["started"]
+        _MEDIA_COMPUTE["started"] = _MEDIA_COMPUTE["expected"] = None
+    _MEDIA_LIBRARY.clear()
+    _MEDIA_LIBRARY[key] = out
+    size = _db_bytes(db_subs, db_epub)
+    try:
+        import json
+        path = _media_cache_path()
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"key": repr(key), "items": out, "seconds": round(seconds, 2),
+                       "seconds_per_gb": round(seconds / (size / 1024 ** 3), 3) if size else None},
+                      f, ensure_ascii=False)
+        os.replace(tmp, path)
+    except OSError:
+        pass
+    return out
+
+
+def _count_media_library(db_subs, db_epub):
     items = {}
     if db_subs is not None:
         try:
@@ -1570,7 +2033,18 @@ def _compute_media_library(db_subs, db_epub, key):
                 it["lines"] += n
         except sqlite3.Error:
             pass
-    out = sorted(items.values(), key=lambda it: _library_sort_key(it["folder"]))
-    _MEDIA_LIBRARY.clear()
-    _MEDIA_LIBRARY[key] = out
-    return out
+    return sorted(items.values(), key=lambda it: _library_sort_key(it["folder"]))
+
+
+def media_page(items, media="all", needle="", offset=0, limit=0, folder=None):
+    if folder is not None:
+        rows = [it for it in items if it["folder"] == folder and media in ("all", it["media"])]
+        return {"items": rows[:1], "total": len(rows[:1]), "has_more": False}
+    needle = needle.strip().lower()
+    rows = [it for it in items
+            if media in ("all", it["media"])
+            and (not needle or needle in it["folder"].lower() or needle in (it["author"] or "").lower())]
+    page = rows[offset:offset + limit] if limit else rows[offset:]
+    return {"items": page, "total": len(rows), "has_more": offset + len(page) < len(rows),
+            "shows": sum(1 for it in items if it["media"] == "subs"),
+            "books": sum(1 for it in items if it["media"] == "epub")}

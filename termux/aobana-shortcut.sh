@@ -3,9 +3,12 @@
 #                              when it is not installed, the default browser opens instead
 source /data/data/com.termux/files/usr/etc/profile
 
+main() {
 AOBANA_DIR="${AOBANA_DIR:-/storage/emulated/0/Aobana}"
 DISTRO="aobana"
 BROWSER_PKG="${AOBANA_BROWSER:-org.mozilla.firefox}"
+INSTALL_URL="https://raw.githubusercontent.com/Wyzmic/aobana/main/termux/install.sh"
+UPDATE_EXIT_CODE=75
 
 PORT="$AOBANA_PORT"
 if [ -z "$PORT" ] && [ -f "$AOBANA_DIR/config.json" ]; then
@@ -24,18 +27,38 @@ open_page() {
 
 if up; then
     open_page
-    exit 0
+    return 0
 fi
 
-echo "露草 / Aobana - $URL"
-echo "Close Termux to stop the server."
-proot-distro login "$DISTRO" -- python3 "$AOBANA_DIR/app.py" &
-PID=$!
+first=1
+while :; do
+    proot-distro login "$DISTRO" -- env AOBANA_TERMUX=1 AOBANA_UPDATER=1 \
+        python3 "$AOBANA_DIR/app.py" &
+    PID=$!
 
-for _ in $(seq 1 120); do
-    up && break
-    kill -0 "$PID" 2>/dev/null || { echo "The server stopped; see the messages above."; exit 1; }
-    sleep 0.5
+    for _ in $(seq 1 120); do
+        up && break
+        kill -0 "$PID" 2>/dev/null || break
+        sleep 0.5
+    done
+    if up; then
+        [ "$first" = 1 ] && open_page
+    elif kill -0 "$PID" 2>/dev/null; then
+        echo "The server did not answer on port $PORT."
+    fi
+    first=0
+
+    wait "$PID"
+    code=$?
+    if [ "$code" != "$UPDATE_EXIT_CODE" ]; then
+        [ "$code" = 0 ] || echo "The server stopped; see the messages above."
+        return "$code"
+    fi
+    printf '\n== Updating Aobana\n'
+    if ! curl -fsSL "$INSTALL_URL" | AOBANA_DIR="$AOBANA_DIR" bash; then
+        echo "The update did not finish (see above); starting the version that is installed."
+    fi
 done
-if up; then open_page; else echo "The server did not answer on port $PORT."; fi
-wait "$PID"
+}
+
+main "$@"; exit
