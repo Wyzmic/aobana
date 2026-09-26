@@ -29,8 +29,6 @@ jobs:
           codesign --verify --deep --strict "$MNT/Aobana.app"
           test -x "$APP/MacOS/Aobana" && test -x "$APP/Resources/Aobana.command"
           hdiutil detach "$MNT"
-      - name: Checksums
-        run: cd release/dist && shasum -a 256 *.dmg | tee SHA256SUMS-macos.txt
       - uses: actions/upload-artifact@v5
         with:
           name: aobana-macos
@@ -39,7 +37,7 @@ jobs:
         if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" release/dist/*.dmg release/dist/SHA256SUMS-macos.txt --clobber
+        run: gh release upload "${{ github.event.release.tag_name }}" release/dist/*.dmg --clobber
 
   linux:
     runs-on: ubuntu-22.04
@@ -74,8 +72,6 @@ jobs:
           EOF
           docker run --rm -v "$PWD:/w" -v /tmp/in-container.sh:/tmp/in-container.sh ubuntu:24.04 bash -c "apt-get update >/dev/null && apt-get install -y python3 >/dev/null && bash /tmp/in-container.sh"
           docker run --rm -v "$PWD:/w" -v /tmp/in-container.sh:/tmp/in-container.sh fedora:latest bash -c "dnf install -y python3 findutils >/dev/null && bash /tmp/in-container.sh"
-      - name: Checksums
-        run: cd release/dist && sha256sum *.AppImage *.tar.gz | tee SHA256SUMS-linux.txt
       - uses: actions/upload-artifact@v5
         with:
           name: aobana-linux
@@ -84,4 +80,4 @@ jobs:
         if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" release/dist/*.AppImage release/dist/*.tar.gz release/dist/SHA256SUMS-linux.txt --clobber
+        run: gh release upload "${{ github.event.release.tag_name }}" release/dist/*.AppImage release/dist/*.tar.gz --clobber

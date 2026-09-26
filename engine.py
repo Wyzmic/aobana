@@ -231,6 +231,40 @@ def split_negated_terms(query: str):
     positive_query = " ".join(positives)
     return positive_query, negatives
 
+@functools.lru_cache(maxsize=256)
+def bound_auxiliary(q):
+    if detect_script(q) != 'hiragana':
+        return None
+    tokenizer_obj, mode = get_tagger()
+    toks = list(tokenizer_obj.tokenize(q, mode))
+    if len(toks) != 1 or toks[0].part_of_speech()[0] != '助動詞':
+        return None
+    kana = toks[0].reading_form()
+    return toks[0].normalized_form(), katakana_to_hiragana(kana) if kana else q
+
+
+def _space_tokens(column):
+    out, parts, i = [], column.split(' '), 0
+    while i < len(parts):
+        if parts[i] == '' and i + 1 < len(parts) and parts[i + 1] == '':
+            out.append(' ')
+            i += 2
+        else:
+            out.append(parts[i])
+            i += 1
+    return out
+
+
+def bound_auxiliary_in_row(bound, base_forms, readings):
+    if not base_forms or not readings:
+        return None
+    bases, reads = _space_tokens(base_forms), _space_tokens(readings)
+    lemma, reading = bound
+    if len(bases) != len(reads):
+        return lemma in bases and any(r.startswith(reading) for r in reads)
+    return any(b == lemma and r.startswith(reading) for b, r in zip(bases, reads))
+
+
 def analyze_query(q):
     content_bases = []
     sql_bases = []
@@ -677,11 +711,15 @@ def highlight_and_furigana(text: str, content_bases: list, q: str, mark: bool = 
         single_bases = {b for g in base_groups if len(g) == 1 for b in g}
         sequences = [g for g in base_groups if len(g) > 1]
 
+    bound = bound_auxiliary(q) if q else None
     for w in words_data:
         surface = w['surface']
         base = token_base(w)
-        w['is_match'] = (base in single_bases or surface in single_bases or surface == q
-                         or w.get('reading_match', False))
+        if bound:
+            w['is_match'] = base == bound[0] and katakana_to_hiragana(w['reading'] or surface).startswith(bound[1])
+        else:
+            w['is_match'] = (base in single_bases or surface in single_bases or surface == q
+                             or w.get('reading_match', False))
         w['hl'] = "main" if w['is_match'] else "none"
 
     seq_words = [w for w in words_data if w['pos'] != '空白']
@@ -1617,6 +1655,7 @@ def _search_results(db, q, folders, sort, folder, exact, abort_flag, limit, offs
         
         script_type = detect_script(clean_q)
         content_bases, sql_bases, readings, base_groups = analyze_query(clean_q)
+        bound = None if is_exact_phrase else bound_auxiliary(clean_q)
         
         neg_info = []
         for neg in neg_terms:
@@ -1800,6 +1839,9 @@ def _search_results(db, q, folders, sort, folder, exact, abort_flag, limit, offs
         if is_neg_hit:
             continue
         
+        if bound and bound_auxiliary_in_row(bound, row_dict.get("base_forms"), row_dict.get("readings")) is False:
+            continue
+
         is_exact = clean_q in clean_text
         if not is_exact and readings:
             q_reading = "".join(readings)

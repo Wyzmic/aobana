@@ -10,7 +10,7 @@ set -e
 AOBANA_DIR="${AOBANA_DIR:-/storage/emulated/0/Aobana}"
 TARBALL="https://codeload.github.com/Wyzmic/aobana/tar.gz/refs/heads/main"
 DISTRO="aobana"
-PHONE_FILES="app.py engine.py utils.py paths.py library.py analyser.py indexer.py epub_indexer.py index.html
+PHONE_FILES="app.py engine.py utils.py paths.py library.py analyser.py indexer.py epub_indexer.py folder_picker.py updater.py index.html
 requirements.txt LICENSE THIRD_PARTY_NOTICES.md data/ruby static"
 OLD_CLONE_FILES=".git .gitattributes .gitignore assets release termux Aobana.bat aobana.sh
 launcher.py README.md README.ja.md CHANGELOG.md"
@@ -65,14 +65,9 @@ for f in $PHONE_FILES; do
     mkdir -p "$(dirname "$AOBANA_DIR/$f")"
     cp -r "$SRC/$f" "$AOBANA_DIR/$f"
 done
-for pair in "字幕:Subtitles" "書籍:Books"; do
-    old="$AOBANA_DIR/content/${pair%%:*}"
-    new="$AOBANA_DIR/content/${pair##*:}"
-    if [ -d "$old" ] && [ ! -e "$new" ] && ! grep -qs "${pair%%:*}" "$AOBANA_DIR/config.json"; then
-        mv "$old" "$new" && echo "renamed content/${pair%%:*} to content/${pair##*:}"
-    fi
-    if [ ! -e "$old" ] && [ ! -e "$new" ]; then
-        mkdir -p "$new" && echo "made content/${pair##*:}"
+for name in Subtitles Books; do
+    if [ ! -e "$AOBANA_DIR/content/$name" ]; then
+        mkdir -p "$AOBANA_DIR/content/$name" && echo "made content/$name"
     fi
 done
 

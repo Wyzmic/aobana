@@ -33,7 +33,7 @@ def is_aobana():
 
 
 def port_taken_message():
-    msg_ja = (f"ポート {PORT} は別のプログラムが使用しているため、露草を起動できません。\n\n"
+    msg_ja = (f"ポート {PORT} は別のプログラムが使用しているため、Aobana を起動できません。\n\n"
               f"{paths.CONFIG_PATH}\nに  \"port\": 5050  （1024〜65535 の空いている番号）を"
               f"追加して、もう一度起動してください。起動後はライブラリタブでも変更できます。")
     msg_en = (f"Another program is already using port {PORT}, so Aobana cannot start.\n\n"
@@ -50,10 +50,24 @@ def port_taken_message():
             pass
 
 
-def wait_and_open(timeout=20.0):
+def page_waiting():
+    try:
+        with urllib.request.urlopen(f"{URL}api/update", timeout=3) as r:
+            return bool(json.loads(r.read().decode("utf-8")).get("page_waiting"))
+    except Exception:
+        return False
+
+
+def wait_and_open(timeout=20.0, after_update=False):
     end = time.monotonic() + timeout
     while time.monotonic() < end:
         if server_up():
+            if after_update:
+                wait_end = time.monotonic() + 8
+                while time.monotonic() < wait_end:
+                    if page_waiting():
+                        return True
+                    time.sleep(0.5)
             webbrowser.open(URL)
             return True
         time.sleep(0.1)
@@ -88,7 +102,9 @@ def main():
         except Exception:
             pass
     app = os.path.join(HERE, "app.py")
-    threading.Thread(target=wait_and_open, daemon=True).start()
+    import updater
+    after_update = updater.after_update() is not None
+    threading.Thread(target=wait_and_open, kwargs={"after_update": after_update}, daemon=True).start()
     os.chdir(HERE)
     return subprocess.call([console_python(), app])
 

@@ -81,7 +81,7 @@ Aobana runs in a terminal window; close the window to quit. Your library goes in
 The Guide tab explains the rest. Aobana runs in a small console window; close it to quit.
 
 ## Android (Termux)
-Aobana runs on an Android phone and opens in your browser there, so a pop-up dictionary such as Yomitan works on it in Firefox. It needs Termux and Termux:Widget, from Google Play or [F-Droid](https://f-droid.org/packages/com.termux/) (both apps from the same store: builds from different stores cannot work together), and about 1.5 GB free.
+Aobana runs on an Android phone and opens in your browser there, so a pop-up dictionary such as Yomitan works on it in Firefox. It needs about 1.5 GB free, and Termux and Termux:Widget from the same store, Google Play or [F-Droid](https://f-droid.org/packages/com.termux/): builds from different stores cannot work together.
 
 1. **Install** — paste this into Termux, and allow storage access when asked:
    ```bash
@@ -124,7 +124,7 @@ Third-party licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.
 
 ## Copyright
 - Aobana includes no subtitles and no books. It indexes files on your own computer; use it only with files you have the right to use.
-- The screenshots quote a few short lines from the author's own library to show how the app works. The titles shown belong to their rights holders.
+- The screenshots quote a few short lines from the developer's own library to show how the app works. The titles shown belong to their rights holders.
 - If you hold the rights to something shown and want it removed, [open an issue](https://github.com/Wyzmic/aobana/issues) and the image will be replaced.
 - Aobana collects nothing and sends nothing: it runs only on your computer.
 

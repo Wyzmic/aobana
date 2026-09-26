@@ -248,6 +248,68 @@ def set_port(value):
     return None
 
 
+HANDOFF_PATH = os.path.join(paths.STORE_DIR, "profile-handoff.json")
+
+
+def _read_handoff():
+    try:
+        with open(HANDOFF_PATH, encoding="utf-8") as fh:
+            doc = json.load(fh)
+        return doc if isinstance(doc, dict) and isinstance(doc.get("items"), dict) else None
+    except (OSError, ValueError):
+        return None
+
+
+def _write_handoff(doc):
+    os.makedirs(paths.STORE_DIR, exist_ok=True)
+    tmp = HANDOFF_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, ensure_ascii=False)
+    os.replace(tmp, HANDOFF_PATH)
+
+
+def _string_items(items):
+    return {str(k): v for k, v in items.items() if isinstance(v, str)} if isinstance(items, dict) else None
+
+
+def save_profile_handoff(to_port, from_port, items):
+    items = _string_items(items)
+    if to_port == from_port or items is None:
+        drop_profile_handoff(from_port)
+        return
+    _write_handoff({"to_port": to_port, "from_port": from_port, "written_at": time.time(), "items": items})
+
+
+def refresh_profile_handoff(from_port, items):
+    doc, items = _read_handoff(), _string_items(items)
+    if doc is None or items is None or doc.get("from_port") != from_port:
+        return
+    doc["items"], doc["written_at"] = items, time.time()
+    _write_handoff(doc)
+
+
+def load_profile_handoff(port):
+    doc = _read_handoff()
+    return doc if doc is not None and doc.get("to_port") == port else None
+
+
+def handoff_pending_from(port):
+    doc = _read_handoff()
+    return doc is not None and doc.get("from_port") == port
+
+
+def drop_profile_handoff(port, written_at=None):
+    doc = _read_handoff()
+    if doc is None or port not in (doc.get("to_port"), doc.get("from_port")):
+        return
+    if written_at is not None and doc.get("written_at") != written_at:
+        return
+    try:
+        os.remove(HANDOFF_PATH)
+    except OSError:
+        pass
+
+
 def open_folder(which):
     target = {"subs": paths.subs_dir, "books": paths.books_dir, "data": paths.db_dir}.get(which)
     if target is None:

@@ -2,7 +2,39 @@
 <html lang="ja">
 <head>
   <meta name="aobana-boot" content="{{ boot }}">
+  <meta name="aobana-version" content="{{ version }}">
+  <meta name="aobana-handoff-pending" content="{{ '1' if handoff_pending else '' }}">
+  {% if handoff %}<script type="application/json" id="aobana-handoff">{{ handoff|tojson }}</script>{% endif %}
   <script>
+    (function () {
+      var el = document.getElementById('aobana-handoff');
+      if (!el) return;
+      try {
+        var doc = JSON.parse(el.textContent), items = doc.items || {}, stamp = String(doc.written_at);
+        if (localStorage.getItem('handoff_applied') !== stamp) {
+          for (var k in items) {
+            if (!Object.prototype.hasOwnProperty.call(items, k)) continue;
+            if (k === 'savedSentences') {
+              var raw = localStorage.getItem('savedSentences');
+              var here = JSON.parse(raw || '[]'), come = JSON.parse(items[k] || '[]');
+              if (!Array.isArray(here) || !Array.isArray(come)) continue;
+              var lines = {};
+              here.forEach(function (s) { if (s && typeof s.line === 'string') lines[s.line] = 1; });
+              var added = come.filter(function (s) { return s && typeof s.line === 'string' && !lines[s.line]; });
+              if (!added.length) continue;
+              if (here.length && localStorage.getItem('savedSentences_backup_v1') === null) localStorage.setItem('savedSentences_backup_v1', raw);
+              localStorage.setItem('savedSentences', JSON.stringify(here.concat(added)));
+            } else if (k === 'savedSentences_backup_v1') {
+              if (localStorage.getItem(k) === null) localStorage.setItem(k, items[k]);
+            } else {
+              localStorage.setItem(k, items[k]);
+            }
+          }
+          localStorage.setItem('handoff_applied', stamp);
+        }
+        fetch('/api/profile-handoff', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Aobana': '1' }, body: JSON.stringify({ applied: doc.written_at }) }).catch(function () {});
+      } catch (e) {}
+    })();
     (function () {
       var get = function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } };
       var theme = get('theme');
@@ -189,19 +221,21 @@
       padding: 0.55em var(--bar-px);
       margin-bottom: var(--pad);
       box-shadow: 0 4px 12px var(--shadow);
-      transition: border-radius 0.2s, margin 0.2s, padding 0.2s, box-shadow 0.2s, border-color 0.2s;
+      transition: border-radius 0.15s, margin 0.15s, padding 0.15s, box-shadow 0.15s, border-color 0.15s,
+                  background-color 0.25s ease, color 0.25s ease;
     }
-    body:has([data-tab-panel]:not([data-tab-panel="search"]):not([hidden])) .topbar {
+    .topbar {
       position: sticky;
-      top: var(--pad);
+      top: 0;
       z-index: 50;
     }
-    body:has([data-tab-panel]:not([data-tab-panel="search"]):not([hidden])) .topbar.is-sticky {
-      top: 0;
+    .topbar.is-sticky {
       margin-left: calc(-1 * var(--pad));
       margin-right: calc(-1 * var(--pad));
-      border-radius: 0 0 12px 12px;
+      border-radius: 0;
       border-top-color: transparent;
+      border-left-color: transparent;
+      border-right-color: transparent;
       padding-left: calc(var(--pad) + var(--bar-px));
       padding-right: calc(var(--pad) + var(--bar-px));
       box-shadow: 0 4px 18px var(--shadow);
@@ -310,7 +344,7 @@
       border: 1px solid var(--border-color);
       box-shadow: 0 4px 12px var(--shadow);
       position: sticky;
-      top: 1em;
+      top: calc(var(--topbar-h, 0px) + var(--pad));
       align-self: flex-start;
       transition: height 0.15s cubic-bezier(0.25, 0.8, 0.25, 1), max-height 0.15s cubic-bezier(0.25, 0.8, 0.25, 1);
     }
@@ -630,6 +664,7 @@
     .step-d { color: var(--text-muted); font-size: 0.88em; line-height: 1.6; }
     .lib-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1em; margin: 1.2em 0; }
     .lib-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 1em 1.1em; min-width: 0; }
+    .lib-card .lib-pick-msg:empty { display: none; }
     .lib-card h3 { margin: 0 0 0.5em; font-size: 1em; color: var(--text-title); display: flex; align-items: center; gap: 0.5em; }
     .lib-card .path { display: block; word-break: break-all; padding: 6px 8px; margin-bottom: 0.7em; line-height: 1.5; }
     .lib-card .facts { font-size: 0.87em; color: var(--text-muted); line-height: 1.7; margin-bottom: 0.8em; }
@@ -710,6 +745,14 @@
       max-height: 90vh; overflow: auto;
     }
     .modal-card.wide { max-width: 560px; }
+    .modal-card.welcome { max-width: 600px; }
+    .modal-card.welcome.big { max-width: 860px; }
+    .whatsnew-sub { margin: 0.2em 0 0.6em; font-size: 1em; color: var(--text-title); text-align: left; }
+    .whatsnew-list { text-align: left; margin: 0 0 1.4em; padding-left: 1.3em; color: var(--text-main);
+                     font-size: max(1rem, 1em); line-height: 1.75; }
+    .whatsnew-list li { margin: 0 0 0.55em; }
+    .whatsnew-list code { font-size: 0.92em; padding: 0.05em 0.35em; border-radius: 4px; background: var(--bg-hover); }
+    #update-progress { width: 100%; margin: 0 0 1em; accent-color: var(--accent); }
     .modal-header {
       display: flex; justify-content: space-between; align-items: center; margin-bottom: 1em;
       border-bottom: 1px solid var(--border-color); padding-bottom: 0.6em;
@@ -728,7 +771,8 @@
     .shortcut-keys { display: flex; gap: 4px; align-items: center; flex-shrink: 0; color: var(--text-muted); }
     .kbd-key { color: var(--link); font-weight: bold; }
     .welcome { text-align: center; }
-    .welcome img { width: 72px; height: 72px; border-radius: 18px; margin: 0.4em 0 0.6em; }
+    .welcome img { width: 72px; height: 72px; border-radius: 18px; margin: 0.4em 0 0.6em;
+                   user-select: none; -webkit-user-select: none; -webkit-user-drag: none; pointer-events: none; }
     .welcome h2 { margin: 0 0 0.5em; color: var(--text-title); }
     .welcome p { color: var(--text-muted); line-height: 1.75; margin: 0 0 1em; }
     .welcome ol { text-align: left; line-height: 1.8; margin: 0 0 1.2em; padding-left: 1.4em; }
@@ -742,7 +786,7 @@
     .context.anim-open { animation: slideDownFader 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; }
     .context.anim-close { animation: slideUpFader 0.15s cubic-bezier(0.25, 0.8, 0.25, 1) forwards; }
 
-    body, .topbar, .sidebar, .card, .panel, .search-input, .search-btn-box, .dd-btn, .dd-menu,
+    body, .sidebar, .card, .panel, .search-input, .search-btn-box, .dd-btn, .dd-menu,
     .context, .icon-btn, .count-badge, .folder-link, #empty-state, .history-chip, .seg, .seg-btn,
     .sq-btn, .exact-chip, .nav-tab, .media-list, .media-row, .lib-card, .step, .btn {
       transition: background-color 0.25s ease, background 0.25s ease, color 0.25s ease, border-color 0.25s ease !important;
@@ -803,21 +847,6 @@
     .topbar-menu .dd-menu { left: 0; right: auto; }
     @media (max-width: 720px) {
       :root { --pad: 0.8rem; --bar-px: 0.7em; }
-      .topbar {
-        position: sticky;
-        top: var(--pad);
-        z-index: 50;
-      }
-      .topbar.is-sticky {
-        top: 0;
-        margin-left: calc(-1 * var(--pad));
-        margin-right: calc(-1 * var(--pad));
-        border-radius: 0 0 12px 12px;
-        border-top-color: transparent;
-        padding-left: calc(var(--pad) + var(--bar-px));
-        padding-right: calc(var(--pad) + var(--bar-px));
-        box-shadow: 0 4px 18px var(--shadow);
-      }
       .flex-row { flex-direction: column; }
       .sidebar { width: 100%; max-width: none; min-width: 0; height: 38vh; position: static; top: auto; align-self: auto; }
       .main-content { width: 100%; }
@@ -857,16 +886,16 @@
         app: '露草', tab_search: '検索', tab_media: 'メディア', tab_library: 'ライブラリ', tab_guide: 'ガイド',
         tab_saved: 'お気に入り',
         title_results: '「{q}」の例文',
-        lang_label: '日本語', theme_label: 'テーマ',
+        theme_label: 'テーマ',
         theme_paper: '紙', theme_haze: '霞', theme_night: '夜', theme_midnight: '深夜',
         media_all: '両方', media_subs: '字幕', media_epub: '書籍',
-        furigana: 'ふりがな表示の切替 (F)', shortcuts: 'ショートカット (?)', sc_button: 'ショートカット',
+        furigana: 'ふりがなの表示 / 非表示 (F)', shortcuts: 'ショートカット (?)',
         sort_recommended: 'おすすめ', sort_chrono: '時系列順', sort_desc: '長い順', sort_asc: '短い順', sort_random: 'ランダム',
         sort_title: '例文の並べ替え',
-        filter_folders: '作品を検索', all: '全て', menu: 'メニュー', sidebar_more: 'さらに {n} 件（スクロールで表示）',
-        placeholder: '検索（例: 食べる, たべる, "食べて"）', exact: '完全一致', exact_title: '入力した語形のまま検索します',
-        recent: '最近の検索:', searching: 'データベースを検索中...', no_results: '一致する結果が見つかりませんでした。',
-        no_more: 'これ以上ありません', loading: '読み込み中...', error: 'エラーが発生しました', load_failed: '読み込みに失敗しました',
+        filter_folders: '作品名で絞り込み', all: '全て', menu: 'メニュー', sidebar_more: 'さらに {n} 件（スクロールで表示）',
+        placeholder: '検索（例: 食べる、たべる、"食べて"）', exact: '完全一致', exact_title: '入力した語形のまま検索します',
+        recent: '最近の検索:', searching: 'データベースを検索中…', no_results: '一致する結果が見つかりませんでした。',
+        no_more: 'これ以上ありません', loading: '読み込み中…', error: 'エラーが発生しました', load_failed: '読み込みに失敗しました',
         chars: '{n} 字', filtering: '絞り込み中: {f}', clear_filter: '絞り込みを解除',
         empty_title: 'ライブラリが空です',
         empty_body: '字幕（.srt / .ass）と電子書籍（.epub）をフォルダに入れて、ライブラリタブでインデックスを作成すると検索できるようになります。',
@@ -882,10 +911,10 @@
         kind_subs: '字幕', kind_epub: '書籍',
         sc_title: 'ショートカット', sc_focus: '検索バーにフォーカス', sc_next: '次のカードを選択', sc_prev: '前のカードを選択',
         sc_context: '文脈の展開 / 折りたたみ', sc_save: 'お気に入りに追加 / 解除', sc_furigana: 'ふりがなの表示 / 非表示',
-        sc_help: 'ヘルプの表示 / 切替', sc_close: 'モーダルを閉じる', close: '閉じる',
+        sc_help: 'このヘルプの表示 / 非表示', sc_close: 'ダイアログを閉じる', close: '閉じる',
         welcome_title: '露草へようこそ',
-        welcome_body: '露草（あおばな）は、あなた自身の字幕と電子書籍から日本語の例文を探す、オフラインの検索エンジンです。例文はふりがな付きで表示され、前後の文脈も確認できます。',
-        welcome_s1: '字幕（.srt / .ass）と電子書籍（.epub）を所定のフォルダに入れる — 場所は<b>ライブラリ</b>タブに表示されます',
+        welcome_body: '露草（あおばな）は、お手持ちの字幕と電子書籍から日本語の例文を探せる、オフラインの検索エンジンです。例文はふりがな付きで表示され、前後の文脈も確認できます。',
+        welcome_s1: '字幕（.srt / .ass）と電子書籍（.epub）を所定のフォルダに入れる（場所は<b>ライブラリ</b>タブで確認できる）',
         welcome_s2: '<b>ライブラリ</b>タブで「インデックス作成」を押す',
         welcome_s3: '<b>検索</b>タブで単語や表現を検索する',
         welcome_more: '使い方の詳細は<b>ガイド</b>タブにあります。',
@@ -895,17 +924,25 @@
         update_more: 'GitHub のリリースページからダウンロードできます。',
         update_later: 'あとで', update_get: 'リリースページを開く', update_skip: 'このバージョンはスキップ',
         update_more_termux: 'Termux でインストールのコマンドをもう一度実行すると更新できます。コピーして Termux に貼り付けてください。',
-        update_more_self: '「今すぐ更新」を押すと、露草がいったん止まり、Termux で更新して、もう一度起動します。',
+        update_more_self: '「今すぐ更新」を押すと、Aobana がいったん止まり、Termux で更新して、もう一度起動します。',
         update_now: '今すぐ更新', update_copy: 'コピー', update_copied: 'コピーしました',
         update_running: '更新中です。終わるとこのページが自動で再読み込みされます。',
+        update_more_auto: '「自動で更新」を押すと、Aobana がダウンロードとインストールを行い、再起動します。リリースページからダウンロードすることもできます。',
+        update_auto: '自動で更新', update_downloading: 'ダウンロード中… {pct}%',
+        update_installing: 'インストールしています。終わると Aobana が再起動し、このページが自動で再読み込みされます。',
+        update_installing_admin: 'Windows が確認を求めたら「はい」を選んでください。',
+        update_failed: '更新できませんでした。リリースページからダウンロードしてください。',
+        whatsnew_title: 'Aobana {version} に更新しました', whatsnew_sub: '主な変更点',
+        whatsnew_none: 'リリースノートを読み込めませんでした。', whatsnew_more: '詳しく見る',
         lib_title: 'ライブラリ',
-        lib_lead: '露草は、下の2つのフォルダにあるファイルだけを読み込みます。ファイルを追加・削除・変更したら「インデックス作成」を押してください。変更のあったファイルだけが処理されるので、2回目以降は短時間で終わります。',
-        lib_step1_t: 'ファイルを入れる', lib_step1_d: '字幕は作品ごとのフォルダに、書籍はそのまま書籍フォルダへ。',
+        lib_lead: 'Aobana は、下の2つのフォルダにあるファイルだけを読み込みます。ファイルを追加・削除・変更したら「インデックス作成」を押してください。変更のあったファイルだけが処理されるので、2回目以降は短時間で終わります。',
+        lib_step1_t: 'ファイルを入れる', lib_step1_d: '字幕は作品ごとのフォルダに、書籍はそのまま書籍フォルダに入れます。',
         lib_step2_t: 'インデックス作成', lib_step2_d: '文を解析して検索用のデータベースを作ります。大きなライブラリでは数分かかります。',
-        lib_step3_t: '検索する', lib_step3_d: '完了したら検索タブへ。',
+        lib_step3_t: '検索する', lib_step3_d: '完了したら、検索タブで検索できます。',
         lib_subs: '字幕フォルダ', lib_books: '書籍フォルダ',
         lib_open: 'フォルダを開く', lib_change: '変更', lib_save: '保存', lib_cancel: 'キャンセル',
         lib_change_hint: '既存のフォルダの場所を貼り付けてください',
+        lib_picking: '開いたウィンドウでフォルダを選んでください。',
         lib_disk_subs: 'フォルダ内: 字幕ファイル {n} 件', lib_disk_books: 'フォルダ内: .epub ファイル {n} 件',
         lib_other: '対象外のファイル {n} 件（.srt / .ass / .ssa / .epub 以外は無視されます）',
         lib_filtered: 'インデックスしないファイル {n} 件（ライブラリの点検で選んだもの）',
@@ -918,22 +955,22 @@
         reindex_body: 'このバージョンでは、書籍の章の分け方と字幕の読み込みが改善されました。以前のバージョンでインデックスしたファイル（字幕 {subs} · 書籍 {books}）は、再インデックスするまで古い結果のままです。<b>ライブラリ</b>タブからワンクリックで更新できます。',
         reindex_later: 'あとで', reindex_go: 'ライブラリを開く',
         checkfirst_title: 'インデックスの前に、ライブラリを点検しますか？',
-        checkfirst_body: '点検すると、日本語以外のファイルと重複（同じ本の別ファイル、同じエピソードの別リッピング）を一覧にします。外すファイルはあなたが選びます。点検しないと、フォルダ内のファイルはすべてインデックスされます。この確認は一度だけです。',
-        checkfirst_check: '先に点検する', checkfirst_index: 'このままインデックス',
-        stop_btn: '中止', stopping: '中止しています...', stop_keep: '続ける', stop_confirm: '中止する',
+        checkfirst_body: '点検すると、日本語以外のファイルと重複（同じ本の別ファイル、同じエピソードの別リッピング）を一覧にします。どれを外すかは一覧から選べます。点検しない場合は、フォルダ内のファイルがすべてインデックスされます。この確認は今回だけです。',
+        checkfirst_check: '先に点検する', checkfirst_index: '点検せずに作成',
+        stop_btn: '中止', stopping: '中止しています…', stop_keep: '続ける', stop_confirm: '中止する',
         stop_index_title: 'インデックスを中止しますか？',
         stop_index_body: 'ここまでにインデックスしたファイルは残り、そのまま検索できます。残りのファイルは、次に「インデックス作成」を押すと続きから読み込みます。',
-        stop_index_outdated: 'ここまでに読み直したファイルは新しい結果に、残りは前の結果のままで、どちらも検索できます。続きは「再インデックスする」から実行できます。',
+        stop_index_outdated: 'ここまでに読み直したファイルは新しい結果になり、残りは前の結果のまま、どちらも検索できます。続きは「再インデックスする」から実行できます。',
         stop_check_title: '点検を中止しますか？',
         stop_check_body: 'ここまで点検した分は保存され、次の点検はその続きから始まります。すでに外すと決めたファイルは、いまインデックスしても外されたままです。',
         lib_stopped: '中止しました。ここまでの分はインデックス済みです。「インデックス作成」で続きから再開できます。',
         lib_unfinished: '前回のインデックスは最後まで終わりませんでした（ウィンドウが閉じられたようです）。それまでの分は残っています。「インデックス作成」で続きから再開できます。',
         lib_unfinished_outdated: '前回の再インデックスは最後まで終わりませんでした（ウィンドウが閉じられたようです）。読み直しの済んだファイルは新しく、残りは前の結果のまま検索できます。続きは「再インデックスする」から実行できます。',
         an_stopped: '点検を中止しました。ここまでの分は保存されています。「点検する」で続きから再開できます。',
-        lib_run: 'インデックス作成', lib_running: '作成中...',
+        lib_run: 'インデックス作成', lib_running: '作成中…',
         lib_stage_subs: '字幕', lib_stage_epub: '書籍',
         lib_done: 'インデックスの作成が完了しました。', lib_done_search: '検索をはじめる',
-        lib_col_stage: '', lib_col_new: '追加・更新', lib_col_same: '変更なし', lib_col_removed: '削除',
+        lib_col_new: '追加・更新', lib_col_same: '変更なし', lib_col_removed: '削除',
         lib_failed: '読み込めなかったファイル（.epub は破損、または DRM で保護されている可能性があります）:',
         lib_root_missing: 'フォルダが見つからないため、この段階は中止されました（何も削除されていません）: {s}',
         lib_log: '詳細ログ', lib_error: 'エラー: {e}',
@@ -941,7 +978,7 @@
         lib_data: 'データベースの保存先', lib_saved: '保存しました。次回のインデックス作成から反映されます。',
         lib_db_lead: 'subs.db と epub.db を、指定した既存のフォルダへそのまま移動します。設定とログは移動しません。',
         lib_db_move: '移動', lib_db_default: '既定の場所に戻す', lib_db_is_default: '既定の場所です。',
-        lib_db_moving: '移動中です... 別のドライブへの移動は数十秒かかることがあります。',
+        lib_db_moving: '移動中です…別のドライブへの移動は数十秒かかることがあります。',
         lib_db_none: 'まだありません', lib_db_moved: 'データベースを移動しました。',
         lib_db_old_kept: 'データベースを移動しました。ただし使用中のため、元のファイルを削除できませんでした。不要であれば手動で削除してください: {files}',
         lib_db_err_busy: 'インデックス作成中は移動できません。', lib_db_err_same: 'データベースはすでにこのフォルダにあります。',
@@ -952,77 +989,82 @@
         lib_root_not_set: 'フォルダが未設定のため、この段階は省略されました: {s}',
         lib_scope_all: '字幕と書籍', lib_scope_subs: '字幕のみ', lib_scope_epub: '書籍のみ',
         lib_skipped_clash: '同じ名前になるため読み込まなかったファイル（字幕フォルダ直下のファイルと、同名の作品フォルダ内のファイル）:',
-        lib_estimating: '所要時間とサイズを見積もっています...',
+        lib_estimating: '所要時間とサイズを見積もっています…',
         est_title: 'インデックス作成の見積もり',
         est_new: '新しいファイル: {n} 件', est_db: '{name}: 現在 {now} → 約 {after}',
         est_total: 'データベース合計: 約 {n}', est_time: '所要時間: 約 {t}（{w} プロセス）',
-        est_warn: 'データベースの合計が 10 GB を超える見込みです。ライブラリが大きいほど検索は遅くなります。「行く」のようによく出る語の検索は、1.7 GB で約 1.5 秒、5.4 GB で約 5 秒かかりました（10 GB を超えると 10 秒ほどになる見込みです）。まれな語はあまり変わりません。続けますか？',
+        est_warn: 'データベースの合計が 10 GB を超える見込みです。大きいほど検索は遅くなり、「行く」のようによく出る語では 1.7 GB で約 1.5 秒、5.4 GB で約 5 秒かかりました（10 GB を超えると 10 秒ほどの見込み）。まれな語はほとんど変わりません。続けますか？',
         est_disk: '空き容量が足りない可能性があります（空き {free}）。',
         est_note: '新しいファイルの一部を実際に解析した見積もりです。変更されたファイルは含みません。',
         est_start: '開始', est_cancel: 'キャンセル',
         est_min: '{n} 分', est_hour: '{h} 時間 {m} 分', est_sec: '1 分未満',
         an_title: 'ライブラリの点検',
-        an_lead: '日本語以外のファイル、重複（同じエピソードの別リッピングや SubPlz の出力、同じ本の別ファイル）、中国語が残る二か国語の字幕を探します。チェックしたファイルはインデックスから外すだけで、移動も削除もしません。二か国語の字幕は、ふだんから日本語の部分だけがインデックスされます。',
-        an_run: '点検する', an_running: '点検中...',
+        an_lead: '日本語以外のファイル、重複（同じエピソードの別リッピングや SubPlz の出力、同じ本の別ファイル）、中国語が残る二か国語の字幕を探します。チェックしたファイルはインデックスから外すだけで、移動も削除もしません。二か国語の字幕は、点検しなくても日本語の部分だけがインデックスされます。',
+        an_run: '点検する', an_running: '点検中…',
         an_stage_subs: '字幕', an_stage_epub: '書籍',
         an_none: '問題は見つかりませんでした。',
         an_reason_bilingual: '二か国語（中国語が残る）', an_reason_other_language: '日本語以外', an_reason_duplicate: '重複',
         an_reason_encoding: '文字コード（UTF-8 で保存し直してください）', an_reason_unreadable: '読み込めないファイル',
-        an_why_lang: '{lines} 行のうち 日本語 {ja}・中国語 {zh}・英語 {en}',
+        an_why_lang: '{lines} 行のうち日本語 {ja}・中国語 {zh}・英語 {en}',
         an_why_dup: '{keep} と {pct}% 同じ内容', an_why_bytes: '{keep} と同一ファイル', an_why_subplz: 'SubPlz の組 · {keep} を残す',
         an_kept: 'この組で残すファイル', an_summary: '{files} ファイルを点検 · {when}',
         an_filter: 'チェックしたファイルをインデックスしない',
-        an_filtered_done: '{n} 件をインデックスから外しました。ファイルはそのままです。インデックスを作成し直すと検索から外れます。',
+        an_filtered_done: '{n} 件をインデックスから外す対象にしました（ファイルはそのままです）。次にインデックスを作成すると検索から外れます。',
         an_filter_failed: '外せなかったファイル（点検のあとでフォルダが変わりました）:',
         an_filtered_title: 'インデックスしないファイル', an_kept_is: '残すファイル: {keep}',
-        an_unfilter: 'チェックしたファイルを再びインデックスする', an_missing: '（フォルダにありません）',
+        an_unfilter: 'チェックしたファイルを再び対象にする', an_missing: '（フォルダにありません）',
         an_unfiltered: '{n} 件を戻しました。インデックスを作成し直すと検索に戻ります。',
         an_err_busy: 'インデックス作成中は変更できません。',
         fav_title: 'お気に入りの書き出し・読み込み',
-        fav_lead: 'お気に入りはこのブラウザに、アドレス（ポート）ごとに保存されます。別のアドレスやブラウザへ移すときは、ここで書き出して、移し先で読み込んでください。',
+        fav_lead: 'お気に入りはこのブラウザに保存されます。別のブラウザやパソコンへ移すときは、ここで書き出して、移し先で読み込んでください。',
         fav_export: '書き出す', fav_import: '読み込む',
         fav_exported: '{n} 件を書き出しました。',
-        fav_imported: '{added} 件を追加しました（{same} 件は既にありました）。',
+        fav_imported: '{added} 件を追加しました（{same} 件はすでにありました）。',
         fav_bad_file: 'お気に入りのファイルとして読み込めませんでした。',
         port_title: 'ポート',
-        port_lead: '露草はこのパソコンの中だけで、このポート番号で動きます（http://127.0.0.1:{port}/）。他のアプリが同じ番号を使っている場合は、別の番号（1024〜65535）に変更してください。お気に入りはポートごとに保存されるため、変更前に上で書き出しておいてください。',
+        port_lead: 'Aobana はこのパソコンの中だけで、このポート番号で動きます（http://127.0.0.1:{port}/）。他のアプリが同じ番号を使っている場合は、別の番号（1024〜65535）に変更してください。設定とお気に入りは新しいポートに引き継がれます。',
         port_save: '保存', port_bad: '1024〜65535 の数字を入力してください。',
-        port_restart: '保存しました。露草を閉じて起動し直すと http://127.0.0.1:{port}/ で開きます。',
+        port_restart: '保存しました。Aobana を閉じて起動し直すと http://127.0.0.1:{port}/ で開きます。',
         port_env: '環境変数 AOBANA_PORT が設定されているため、ここでの設定は使われません。',
+        reset_title: '設定の初期化', lib_scope_aria: 'インデックスする対象',
+        reset_lead: 'このポートの設定、お気に入り、検索履歴をすべて消して、初めて起動したときの状態に戻します。ライブラリとインデックスはそのまま残ります。',
+        reset_btn: '初期化', reset_q: 'すべての設定を初期化しますか？',
+        reset_body: 'お気に入り（{n} 件）も消え、元には戻せません。残す場合は先に書き出してください。ライブラリとインデックスは残ります。',
+        reset_export: 'お気に入りを書き出す', reset_confirm: '初期化する',
       },
       en: {
         app: 'Aobana', tab_search: 'Search', tab_media: 'Media', tab_library: 'Library', tab_guide: 'Guide',
         tab_saved: 'Favorites',
         title_results: 'Example sentences for 「{q}」',
-        lang_label: 'English', theme_label: 'Theme',
+        theme_label: 'Theme',
         theme_paper: 'Paper', theme_haze: 'Haze', theme_night: 'Night', theme_midnight: 'Midnight',
         media_all: 'All', media_subs: 'Subs', media_epub: 'Books',
-        furigana: 'Show / hide furigana (F)', shortcuts: 'Keyboard shortcuts (?)', sc_button: 'Shortcuts',
+        furigana: 'Show / hide furigana (F)', shortcuts: 'Keyboard shortcuts (?)',
         sort_recommended: 'Recommended', sort_chrono: 'Chronological', sort_desc: 'Longest', sort_asc: 'Shortest', sort_random: 'Random',
         sort_title: 'Sort sentences',
         filter_folders: 'Filter titles', all: 'All', menu: 'Menu', sidebar_more: '{n} more (scroll to load)',
         placeholder: 'Search (e.g. 食べる, たべる, "食べて")', exact: 'Exact', exact_title: 'Match the form exactly as typed',
         recent: 'Recent searches:', searching: 'Searching...', no_results: 'No matching sentences found.',
         no_more: 'No more results', loading: 'Loading...', error: 'Something went wrong', load_failed: 'Could not load',
-        chars: '{n} chars', filtering: 'Filtered to: {f}', clear_filter: 'Clear filter',
+        chars: '{n} {n|char|chars}', filtering: 'Filtered to: {f}', clear_filter: 'Clear filter',
         empty_title: 'Your library is empty',
         empty_body: 'Put subtitle files (.srt / .ass) and e-books (.epub) in your folders, then build the index in the Library tab to start searching.',
         empty_btn: 'Open Library',
         no_saved: 'No favorites yet. Press ★ on a sentence to save it here.',
         saved_count: '{n} saved',
-        media_summary: '{shows} shows · {books} books', media_filter: 'Filter by title or author',
+        media_summary: '{shows} {shows|show|shows} · {books} {books|book|books}', media_filter: 'Filter by title or author',
         media_matches: '{n} matching', media_preparing: 'Preparing the media list',
         page_size_title: 'How many to load at once', page_size_n: '{n} at a time', page_size_all: 'All',
         eta_left: 'About {t} left', eta_s: '{n} s', eta_m: '{m} min', eta_ms: '{m} min {s} s', eta_soon: 'Almost done',
         media_none: 'Nothing matches.', back_media: 'All media',
-        stat_eps: '{n} episodes', stat_lines: '{n} lines', stat_chaps: '{n} chapters', stat_sents: '{n} sentences',
+        stat_eps: '{n} {n|episode|episodes}', stat_lines: '{n} {n|line|lines}', stat_chaps: '{n} {n|chapter|chapters}', stat_sents: '{n} {n|sentence|sentences}',
         kind_subs: 'SUBS', kind_epub: 'BOOK',
         sc_title: 'Keyboard shortcuts', sc_focus: 'Focus the search bar', sc_next: 'Select the next card', sc_prev: 'Select the previous card',
         sc_context: 'Show / hide context', sc_save: 'Add to / remove from favorites', sc_furigana: 'Show / hide furigana',
-        sc_help: 'Show this help', sc_close: 'Close a dialog', close: 'Close',
+        sc_help: 'Show / hide this help', sc_close: 'Close a dialog', close: 'Close',
         welcome_title: 'Welcome to Aobana',
         welcome_body: 'Aobana (露草) is an offline search engine for Japanese example sentences, built from your own subtitles and e-books. Sentences come with furigana, and you can open the surrounding context.',
-        welcome_s1: 'Put subtitle files (.srt / .ass) and e-books (.epub) in your folders - the <b>Library</b> tab shows where',
+        welcome_s1: 'Put subtitle files (.srt / .ass) and e-books (.epub) in your folders (the <b>Library</b> tab shows where)',
         welcome_s2: 'Press "Index library" in the <b>Library</b> tab',
         welcome_s3: 'Search for words and phrases in the <b>Search</b> tab',
         welcome_more: 'The <b>Guide</b> tab explains everything in more detail.',
@@ -1035,42 +1077,50 @@
         update_more_self: '"Update now" stops Aobana, updates it in Termux and starts it again.',
         update_now: 'Update now', update_copy: 'Copy', update_copied: 'Copied',
         update_running: 'Updating. This page reloads by itself when it is done.',
+        update_more_auto: '"Update automatically" downloads and installs it, then restarts Aobana. You can also download it from the release page.',
+        update_auto: 'Update automatically', update_downloading: 'Downloading... {pct}%',
+        update_installing: 'Installing. Aobana restarts when it is done, and this page reloads by itself.',
+        update_installing_admin: 'If Windows asks for permission, choose "Yes".',
+        update_failed: 'The update did not go through. Download it from the release page.',
+        whatsnew_title: 'Updated to Aobana {version}', whatsnew_sub: 'Notable changes',
+        whatsnew_none: 'The release notes could not be loaded.', whatsnew_more: 'Read more',
         lib_title: 'Library',
         lib_lead: 'Aobana only reads files in the two folders below. Whenever you add, remove or change files, press "Index library". Only changed files are processed, so later runs are quick.',
         lib_step1_t: 'Add files', lib_step1_d: 'Subtitles go in one folder per show; books go straight into the books folder.',
-        lib_step2_t: 'Index library', lib_step2_d: 'Every sentence is analysed into a search database. A large library can take a few minutes.',
+        lib_step2_t: 'Index library', lib_step2_d: 'Every sentence is analyzed into a search database. A large library can take a few minutes.',
         lib_step3_t: 'Search', lib_step3_d: 'When it finishes, go to the Search tab.',
         lib_subs: 'Subtitles folder', lib_books: 'Books folder',
         lib_open: 'Open folder', lib_change: 'Change', lib_save: 'Save', lib_cancel: 'Cancel',
         lib_change_hint: 'Paste the path of an existing folder',
-        lib_disk_subs: 'In the folder: {n} subtitle files', lib_disk_books: 'In the folder: {n} .epub files',
-        lib_other: '{n} other files (anything that is not .srt / .ass / .ssa / .epub is ignored)',
-        lib_filtered: '{n} files left out of the index (chosen in Check library)',
+        lib_picking: 'Choose a folder in the window that opened.',
+        lib_disk_subs: 'In the folder: {n} subtitle {n|file|files}', lib_disk_books: 'In the folder: {n} .epub {n|file|files}',
+        lib_other: '{n} other {n|file|files} (anything that is not .srt / .ass / .ssa / .epub is ignored)',
+        lib_filtered: '{n} {n|file|files} left out of the index (chosen in Check library)',
         lib_missing: 'This folder does not exist.',
-        lib_indexed_subs: 'Indexed: {files} files · {rows} lines',
-        lib_indexed_books: 'Indexed: {files} books · {rows} sentences',
-        lib_outdated: 'Some files were indexed by an earlier version ({subs} subtitle files · {books} books). The better book chapters and cleaner subtitles reach them only when they are re-indexed.',
+        lib_indexed_subs: 'Indexed: {files} {files|file|files} · {rows} {rows|line|lines}',
+        lib_indexed_books: 'Indexed: {files} {files|book|books} · {rows} {rows|sentence|sentences}',
+        lib_outdated: 'Some files were indexed by an earlier version ({subs} subtitle {subs|file|files} · {books} {books|book|books}). The improved book chapters and cleaner subtitles apply to them only after they are re-indexed.',
         lib_outdated_run: 'Re-index them',
         reindex_title: 'Re-indexing recommended',
-        reindex_body: 'This version splits books into chapters more accurately and reads subtitles more cleanly. Files indexed by an earlier version ({subs} subtitle files · {books} books) keep the old result until they are re-indexed. The <b>Library</b> tab does it in one click.',
-        reindex_later: 'Later', reindex_go: 'Open the Library',
+        reindex_body: 'This version splits books into chapters more accurately and reads subtitles more cleanly. Files indexed by an earlier version ({subs} subtitle {subs|file|files} · {books} {books|book|books}) keep the old result until they are re-indexed. The <b>Library</b> tab does it in one click.',
+        reindex_later: 'Later', reindex_go: 'Open Library',
         checkfirst_title: 'Check the library before indexing?',
         checkfirst_body: 'The check lists files that are not in Japanese and duplicates (one book in two files, other rips of one episode). You choose which to leave out. Without it, every file in the folders is indexed. You are only asked once.',
         checkfirst_check: 'Check first', checkfirst_index: 'Index now',
         stop_btn: 'Stop', stopping: 'Stopping...', stop_keep: 'Keep going', stop_confirm: 'Stop',
         stop_index_title: 'Stop indexing?',
-        stop_index_body: 'The files indexed so far stay in the index and can be searched. The rest are read the next time you press Index library, from where this run stopped.',
-        stop_index_outdated: 'The files read again so far have their new result and the rest keep their earlier one; all of them can be searched. Re-index them carries on with the rest.',
+        stop_index_body: 'The files indexed so far stay in the index and can be searched. The next time you press "Index library", it carries on from where this run stopped.',
+        stop_index_outdated: 'The files re-read so far have their new result, and the rest keep the earlier one; all of them can be searched. "Re-index them" carries on with the rest.',
         stop_check_title: 'Stop the check?',
         stop_check_body: 'What has been checked so far is saved, and the next check starts from there. The files you already chose to leave out stay out if you index now.',
-        lib_stopped: 'Stopped. Everything up to here is indexed; Index library carries on from where it stopped.',
-        lib_unfinished: 'The last indexing run did not finish (its window was closed, it seems). What it indexed before that is kept; Index library carries on from there.',
-        lib_unfinished_outdated: 'The last re-index did not finish (its window was closed, it seems). The files it read again are updated; the rest keep their earlier result and can still be searched. Re-index them carries on.',
-        an_stopped: 'Check stopped. What was checked so far is saved; Check carries on from there.',
+        lib_stopped: 'Stopped. Everything up to here is indexed; "Index library" carries on from where it stopped.',
+        lib_unfinished: 'The last indexing run did not finish (the window was probably closed). What it indexed before that is kept; "Index library" carries on from there.',
+        lib_unfinished_outdated: 'The last re-index did not finish (the window was probably closed). The files it read again are updated; the rest keep their earlier result and can still be searched. "Re-index them" carries on.',
+        an_stopped: 'Check stopped. What was checked so far is saved; "Check" carries on from there.',
         lib_run: 'Index library', lib_running: 'Indexing...',
         lib_stage_subs: 'Subtitles', lib_stage_epub: 'Books',
         lib_done: 'Indexing finished.', lib_done_search: 'Start searching',
-        lib_col_stage: '', lib_col_new: 'Added / updated', lib_col_same: 'Unchanged', lib_col_removed: 'Removed',
+        lib_col_new: 'Added / updated', lib_col_same: 'Unchanged', lib_col_removed: 'Removed',
         lib_failed: 'Files that could not be read (an .epub may be damaged, or protected by DRM):',
         lib_root_missing: 'This stage was stopped because its folder is missing (nothing was removed): {s}',
         lib_log: 'Detailed log', lib_error: 'Error: {e}',
@@ -1085,17 +1135,17 @@
         lib_db_err_exists: 'That folder already holds a subs.db or epub.db. Nothing is overwritten.',
         lib_db_err_notwritable: 'That folder cannot be written to.',
         lib_db_err_failed: 'The move failed. The databases are still where they were.',
-        lib_not_set: 'Not set. Choose a folder with Change.',
+        lib_not_set: 'Not set. Choose a folder with "Change".',
         lib_root_not_set: 'This stage was skipped because its folder is not set: {s}',
         lib_scope_all: 'Subtitles and books', lib_scope_subs: 'Subtitles only', lib_scope_epub: 'Books only',
-        lib_skipped_clash: 'Files not read because two would share one name (a file at the top of the subtitles folder, and one of the same name in the show folder named after it):',
+        lib_skipped_clash: 'Not read, because two files would get the same name (one directly in the subtitles folder, one in the show folder named after it):',
         lib_estimating: 'Estimating time and size...',
-        est_title: 'Before indexing',
+        est_title: 'Indexing estimate',
         est_new: 'New files: {n}', est_db: '{name}: now {now} → about {after}',
-        est_total: 'Databases in total: about {n}', est_time: 'Time: about {t} ({w} processes)',
-        est_warn: 'The databases are expected to pass 10 GB in total. The larger the library, the slower searches get: a very common word like 行く took about 1.5 s at 1.7 GB and about 5 s at 5.4 GB, and can be expected to take around 10 s past 10 GB. Rarer words change less. Continue?',
+        est_total: 'Databases in total: about {n}', est_time: 'Time: about {t} ({w} {w|process|processes})',
+        est_warn: 'The databases are expected to pass 10 GB in total. Searches slow down as they grow: a very common word like 行く took about 1.5 s at 1.7 GB and 5 s at 5.4 GB, and may take around 10 s past 10 GB. Rare words are barely affected. Continue?',
         est_disk: 'There may not be enough free space ({free} free).',
-        est_note: 'Estimated by analysing a sample of the new files. Changed files are not counted.',
+        est_note: 'Estimated by analyzing a sample of the new files. Changed files are not counted.',
         est_start: 'Start', est_cancel: 'Cancel',
         est_min: '{n} min', est_hour: '{h} h {m} min', est_sec: 'under a minute',
         an_title: 'Check library',
@@ -1105,31 +1155,38 @@
         an_none: 'Nothing found.',
         an_reason_bilingual: 'Bilingual (Chinese left over)', an_reason_other_language: 'Not Japanese', an_reason_duplicate: 'Duplicates',
         an_reason_encoding: 'Encoding (save it again as UTF-8)', an_reason_unreadable: 'Files that could not be read',
-        an_why_lang: '{lines} lines: Japanese {ja} · Chinese {zh} · English {en}',
+        an_why_lang: '{lines} {lines|line|lines}: Japanese {ja} · Chinese {zh} · English {en}',
         an_why_dup: '{pct}% the same as {keep}', an_why_bytes: 'the same file as {keep}', an_why_subplz: 'SubPlz set · {keep} kept',
-        an_kept: 'the one kept from this group', an_summary: '{files} files checked · {when}',
+        an_kept: 'the one kept from this group', an_summary: '{files} {files|file|files} checked · {when}',
         an_filter: "Don't index the ticked files",
-        an_filtered_done: '{n} files left out of the index. The files stay where they are; index again to take them out of search.',
+        an_filtered_done: '{n} {n|file|files} will be left out of the index (the files stay where they are). They leave search at the next "Index library".',
         an_filter_failed: 'Files that could not be left out (the folder changed after the check):',
-        an_filtered_title: 'Filtered: not indexed', an_kept_is: 'kept: {keep}',
-        an_unfilter: 'Index the ticked files again', an_missing: '(no longer in the folder)',
-        an_unfiltered: '{n} files taken off the list. Index again to put them back in search.',
+        an_filtered_title: 'Left out of the index', an_kept_is: 'kept: {keep}',
+        an_unfilter: 'Include the ticked files again', an_missing: '(no longer in the folder)',
+        an_unfiltered: '{n} {n|file|files} taken off the list. Index again to put them back in search.',
         an_err_busy: 'This cannot be changed while indexing.',
         fav_title: 'Export and import favorites',
-        fav_lead: 'Favorites are kept in this browser, separately for each address (port). To move them to another address or browser, export them here and import them there.',
+        fav_lead: 'Favorites are kept in this browser. To move them to another browser or computer, export them here and import them there.',
         fav_export: 'Export', fav_import: 'Import',
-        fav_exported: 'Exported {n} favorites.',
-        fav_imported: 'Added {added} ({same} were already there).',
+        fav_exported: 'Exported {n} {n|favorite|favorites}.',
+        fav_imported: 'Added {added} ({same} {same|was|were} already there).',
         fav_bad_file: 'That file could not be read as favorites.',
         port_title: 'Port',
-        port_lead: 'Aobana runs only on this computer, on this port number (http://127.0.0.1:{port}/). If another app uses the same number, change it to another one (1024 to 65535). Favorites are kept per port, so export them above before you change it.',
+        port_lead: 'Aobana runs only on this computer, on this port number (http://127.0.0.1:{port}/). If another app uses the same number, change it to another one (1024 to 65535). Your settings and favorites move to the new port.',
         port_save: 'Save', port_bad: 'Enter a number from 1024 to 65535.',
         port_restart: 'Saved. Close Aobana and start it again, and it opens at http://127.0.0.1:{port}/.',
         port_env: 'The AOBANA_PORT environment variable is set, so this setting is not used.',
+        reset_title: 'Reset settings', lib_scope_aria: 'What to index',
+        reset_lead: 'Clears every setting, your favorites and your search history on this port, as on a first start. Your library and index stay as they are.',
+        reset_btn: 'Reset all settings to default', reset_q: 'Reset all settings?',
+        reset_body: 'Your favorites ({n}) go too, and this cannot be undone. Export them first to keep them. Your library and index are kept.',
+        reset_export: 'Export favorites', reset_confirm: 'Reset',
       },
     };
     function t(key, vars) {
       let s = (I18N[LANG] && I18N[LANG][key]) ?? I18N.ja[key] ?? key;
+      if (vars) s = s.replace(/\{(\w+)\|([^|}]*)\|([^}]*)\}/g, (m, k, one, many) =>
+        k in vars ? (Number(String(vars[k]).replace(/[^\d.-]/g, '')) === 1 ? one : many) : m);
       if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(v);
       return s;
     }
@@ -1138,6 +1195,7 @@
       root.querySelectorAll('[data-i18n-html]').forEach(el => { el.innerHTML = t(el.dataset.i18nHtml); });
       root.querySelectorAll('[data-i18n-placeholder]').forEach(el => { el.placeholder = t(el.dataset.i18nPlaceholder); });
       root.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
+      root.querySelectorAll('[data-i18n-aria]').forEach(el => { el.setAttribute('aria-label', t(el.dataset.i18nAria)); });
     }
     function setLang(lang) {
       store.set('lang', lang);
@@ -1513,9 +1571,10 @@
       if (!s) return;
       const cs = getComputedStyle(s);
       if (cs.position !== 'sticky') { s.style.height = s.style.maxHeight = ''; return; }
-      const gap = parseFloat(cs.top) || 16;
+      const stickyTop = parseFloat(cs.top) || 16;
+      const gap = parseFloat(getComputedStyle(document.body).paddingBottom) || 16;
       const topRect = s.getBoundingClientRect().top;
-      const h = Math.max(200, window.innerHeight - Math.max(topRect, gap) - gap);
+      const h = Math.max(200, window.innerHeight - Math.max(topRect, stickyTop) - gap);
       s.style.transition = 'none';
       s.style.height = s.style.maxHeight = Math.round(h) + 'px';
       requestAnimationFrame(() => { s.style.transition = ''; });
@@ -1526,6 +1585,14 @@
     window.addEventListener('resize', queueFit);
     window.addEventListener('load', fitSidebar);
     document.addEventListener('DOMContentLoaded', fitSidebar);
+    document.addEventListener('DOMContentLoaded', () => {
+      const bar = document.querySelector('.topbar');
+      if (!bar) return;
+      new ResizeObserver(() => {
+        document.documentElement.style.setProperty('--topbar-h', bar.offsetHeight + 'px');
+        queueFit();
+      }).observe(bar);
+    });
 
     window.addEventListener('beforeunload', () => {
       const sidebar = document.querySelector('.sidebar');
@@ -1677,10 +1744,10 @@
           <div class="file-title">
             <span class="main-sentence">${r.display_line}</span>
             <div class="actions-box">
-              <button class="icon-btn ${isSaved ? 'star-active' : ''}" onclick="toggleSave('${rId}', this)" data-star="${starKey(savedItemData)}">
+              <button class="icon-btn ${isSaved ? 'star-active' : ''}" onclick="toggleSave('${rId}', this)" data-star="${starKey(savedItemData)}" aria-label="${esc(t('sc_save'))}">
                 <span>★</span>
               </button>
-              <button class="icon-btn" onclick="toggleContext(this)" data-rowid="${r.rowid}" data-file="${encodeURIComponent(r.file)}" data-saved-context="${r.context ? encodeURIComponent(r.context) : ''}">
+              <button class="icon-btn" onclick="toggleContext(this)" aria-label="${esc(t('sc_context'))}" data-rowid="${r.rowid}" data-file="${encodeURIComponent(r.file)}" data-saved-context="${r.context ? encodeURIComponent(r.context) : ''}">
                 <span>⋯</span>
               </button>
             </div>
@@ -2127,7 +2194,7 @@
               <div class="episode-line">
                   <span class="main-sentence">${r.display_line}</span>
                   <div class="actions-box">
-                    <button class="icon-btn ${isSaved ? 'star-active' : ''}" onclick="toggleSave('${rId}', this)" data-star="${starKey(savedItemData)}">
+                    <button class="icon-btn ${isSaved ? 'star-active' : ''}" onclick="toggleSave('${rId}', this)" data-star="${starKey(savedItemData)}" aria-label="${esc(t('sc_save'))}">
                       <span>★</span>
                     </button>
                   </div>
@@ -2152,6 +2219,7 @@
       document.getElementById('lib-folders').innerHTML =
         folderCard('subs', t('lib_subs'), lib.subs_dir, lib.subs_disk, lib.subs_indexed) +
         folderCard('books', t('lib_books'), lib.books_dir, lib.books_disk, lib.books_indexed);
+      folderPicker = !!lib.folder_picker;
       renderOutdated(lib);
       renderDbCard(lib);
       renderPortCard(lib);
@@ -2186,8 +2254,9 @@
         </div>
         <div class="btns lib-view-btns">
           <button class="btn" onclick="openFolder('${which}')" ${disk ? '' : 'disabled'}>${esc(t('lib_open'))}</button>
-          <button class="btn" onclick="toggleFolderEdit('${which}', true)">${esc(t('lib_change'))}</button>
+          <button class="btn" onclick="changeFolder('${which}')">${esc(t('lib_change'))}</button>
         </div>
+        <div class="lib-pick-msg facts" style="margin:0.5em 0 0;"></div>
       </div>`;
     }
 
@@ -2201,6 +2270,37 @@
         <div class="btns" style="display:flex; gap:0.5em; margin-top:0.6em;">
           <button class="btn primary" onclick="startIndex('${only}', true)">${esc(t('lib_outdated_run'))}</button>
         </div>`;
+    }
+
+    let folderPicker = false;
+    async function pickFolder(card, which, title) {
+      const msg = card.querySelector('.lib-pick-msg') || card.querySelector('.lib-msg');
+      const buttons = [...card.querySelectorAll('.lib-view-btns button')];
+      const was = buttons.map(b => b.disabled);
+      buttons.forEach(b => b.disabled = true);
+      msg.textContent = t('lib_picking');
+      const res = await apiPost('/api/library/pick', { which, title }).catch(() => ({ status: 'unavailable' }));
+      buttons.forEach((b, i) => b.disabled = was[i]);
+      msg.textContent = '';
+      return res;
+    }
+    async function changeFolder(which) {
+      if (!folderPicker) return toggleFolderEdit(which, true);
+      const card = document.getElementById(`lib-card-${which}`);
+      const res = await pickFolder(card, which, t(which === 'subs' ? 'lib_subs' : 'lib_books'));
+      if (res.status === 'unavailable') return toggleFolderEdit(which, true);
+      if (res.status !== 'ok') return;
+      card.querySelector('.lib-edit input').value = res.path;
+      if (!(await saveFolder(which))) toggleFolderEdit(which, true);
+    }
+    async function changeDbFolder() {
+      if (!folderPicker) return toggleDbEdit(true);
+      const card = document.getElementById('lib-data');
+      const res = await pickFolder(card, 'data', t('lib_data'));
+      if (res.status === 'unavailable') return toggleDbEdit(true);
+      if (res.status !== 'ok') return;
+      toggleDbEdit(true);
+      card.querySelector('.lib-edit input').value = res.path;
     }
 
     function toggleFolderEdit(which, on) {
@@ -2218,11 +2318,12 @@
       const res = await apiPost('/api/library', body).catch(() => ({ error: 'network' }));
       if (res.error) {
         msg.innerHTML = `<span class="warn">${esc(res.error === 'busy' ? t('lib_err_busy') : t('lib_err_notfound'))}</span>`;
-        return;
+        return false;
       }
       await refreshLibrary();
       const note = document.getElementById('lib-note');
       note.textContent = t('lib_saved'); note.hidden = false;
+      return true;
     }
 
     function fmtBytes(n) {
@@ -2246,7 +2347,7 @@
         </div>
         <div class="btns lib-view-btns">
           <button class="btn" onclick="openFolder('data')">${esc(t('lib_open'))}</button>
-          <button class="btn" onclick="toggleDbEdit(true)">${esc(t('lib_change'))}</button>
+          <button class="btn" onclick="changeDbFolder()">${esc(t('lib_change'))}</button>
           ${lib.db_is_default ? '' : `<button class="btn" onclick="moveDatabases('default')">${esc(t('lib_db_default'))}</button>`}
         </div>
         <div class="lib-msg facts" style="margin:0.5em 0 0;"></div>`;
@@ -2322,6 +2423,22 @@
       favNote(t('fav_imported', { added: fmt(added), same: fmt(same) }));
     }
 
+    let handoffPending = document.querySelector('meta[name="aobana-handoff-pending"]').content === '1';
+    function profileSnapshot() {
+      const items = {};
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k !== 'aobana_boot' && k !== 'handoff_applied') items[k] = localStorage.getItem(k);
+        }
+      } catch (e) {}
+      return items;
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'hidden' || !handoffPending) return;
+      const body = JSON.stringify({ items: profileSnapshot() });
+      fetch('/api/profile-handoff', { method: 'POST', keepalive: body.length < 60000, headers: { 'Content-Type': 'application/json', 'X-Aobana': '1' }, body }).catch(() => {});
+    });
     function renderPortCard(lib) {
       const running = Number(location.port || 80);
       document.getElementById('port-lead').textContent = t('port_lead', { port: running });
@@ -2335,10 +2452,26 @@
     async function savePort() {
       const value = document.getElementById('port-input').value.trim();
       const note = document.getElementById('port-note');
-      const res = await apiPost('/api/library', { port: value }).catch(() => ({ error: 'network' }));
+      const res = await apiPost('/api/library', { port: value, profile: profileSnapshot() }).catch(() => ({ error: 'network' }));
       if (res.error) { note.textContent = t('port_bad'); note.className = 'notice warn'; note.hidden = false; return; }
+      handoffPending = Number(value) !== Number(location.port || 80);
       note.className = 'notice';
       await refreshLibrary();
+    }
+
+    function openReset() {
+      document.getElementById('reset-body').textContent = t('reset_body', { n: fmt(savedSentences.length) });
+      document.getElementById('reset-modal').classList.add('open');
+      document.documentElement.style.overflow = 'hidden';
+    }
+
+    async function closeReset(reset) {
+      document.getElementById('reset-modal').classList.remove('open');
+      document.documentElement.style.overflow = '';
+      if (!reset) return;
+      await apiPost('/api/profile-handoff', { drop: true }).catch(() => null);
+      try { localStorage.clear(); } catch (e) {}
+      window.location.href = '/';
     }
 
     function favNote(text, warn) {
@@ -2686,7 +2819,7 @@ function startPolling() {
 
         <h2>2. インデックスを作成する</h2>
         <p><a href="/?tab=library">ライブラリ</a>タブで「インデックス作成」を押すと、すべての文を解析して検索用のデータベースを作ります。初回は大きなライブラリで数分かかります。2回目以降は追加・変更・削除されたファイルだけを処理します。ファイルを入れ替えたら、もう一度押してください。</p>
-        <p>ボタンの横で、字幕だけ・書籍だけを選べます。ファイルが増えるときは、作成前にデータベースの大きさと所要時間の見積もりが出ます。2つのデータベースの合計が 10 GB を超えそうなときは、検索が遅くなることを確認してから始めます。同じタブの「点検する」では、日本語以外のファイルや重複ファイルを探し、選んだものをインデックスから外せます（ファイルは移動も削除もしません）。二か国語の字幕は日本語の部分だけがインデックスされます。</p>
+        <p>ボタンの横で、字幕だけ・書籍だけを選べます。ファイルが増えるときは、作成前にデータベースの大きさと所要時間の見積もりが出ます。2つのデータベースの合計が 10 GB を超えそうなときは、検索が遅くなるため、始める前に確認が表示されます。同じタブの「点検する」では、日本語以外のファイルや重複ファイルを探し、選んだものをインデックスから外せます（ファイルは移動も削除もしません）。二か国語の字幕は日本語の部分だけがインデックスされます。</p>
 
         <h2>3. 検索する</h2>
         <ul>
@@ -2700,7 +2833,7 @@ function startPolling() {
 
         <h2>例文の操作</h2>
         <ul>
-          <li><b>★</b> お気に入りに保存。<a href="/?tab=saved">お気に入り</a>タブで見られます（このブラウザに保存されます）。</li>
+          <li><b>★</b> お気に入りに保存します。<a href="/?tab=saved">お気に入り</a>タブで見られます（このブラウザに保存されます）。</li>
           <li><b>⋯</b> 前後の文脈を表示します。</li>
           <li><b>ふ</b> ふりがなの表示・非表示を切り替えます。</li>
         </ul>
@@ -2715,7 +2848,7 @@ function startPolling() {
         <p>右上のボタンでショートカット一覧（?）、言語（日本語 / English）、テーマ（紙・霞・夜・深夜）を切り替えられます。</p>
 
         <h2>アプリの終了</h2>
-        <p>露草は小さなウィンドウ（「露草」サーバー）で動いています。そのウィンドウを閉じると終了します。ブラウザのタブを閉じるだけでは終了しません。</p>
+        <p>露草は小さなウィンドウ（「露草 / Aobana」）で動いています。そのウィンドウを閉じると終了します。ブラウザのタブを閉じるだけでは終了しません。</p>
       `,
       en: `
         <h1>Guide</h1>
@@ -2745,15 +2878,15 @@ Books folder/
         </ul>
 
         <h2>2. Build the index</h2>
-        <p>Press "Index library" in the <a href="/?tab=library">Library</a> tab. Every sentence is analysed into a search database; the first run over a large library takes a few minutes. Later runs only process files that were added, changed or removed, so run it again whenever your files change.</p>
+        <p>Press "Index library" in the <a href="/?tab=library">Library</a> tab. Every sentence is analyzed into a search database; the first run over a large library takes a few minutes. Later runs only process files that were added, changed or removed, so run it again whenever your files change.</p>
         <p>Beside the button you can choose subtitles only or books only. When files were added, you first see how large the databases will get and how long it will take; past 10 GB in total, Aobana asks before it starts, as searches get slower. "Check" in the same tab finds files that are not Japanese and duplicates, and leaves the ones you tick out of the index (nothing is moved or deleted). Bilingual subtitles are indexed with their Japanese part only.</p>
 
         <h2>3. Search</h2>
         <ul>
-          <li><b>Conjugations are found together.</b> <code>食べる</code> also finds 食べた, 食べて and so on, and the reading <code>たべる</code> works too.</li>
+          <li><b>Every conjugated form is found.</b> <code>食べる</code> also finds 食べた, 食べて and so on, and the reading <code>たべる</code> works too.</li>
           <li><b>Exact</b> matches exactly what you typed. Wrapping the query in quotes (<code>"食べて"</code>) does the same.</li>
           <li><b>Exclude</b> sentences containing a word by putting <code>-</code> in front of it (<code>食べる -肉</code>).</li>
-          <li><b>Sort</b>: recommended (easy-to-read lengths first), in order, longest, shortest, random. Your choice is remembered.</li>
+          <li><b>Sort</b>: recommended (easy-to-read lengths first), chronological, longest, shortest, random. Your choice is remembered.</li>
           <li><b>All / Subs / Books</b>: the buttons at the top of the sidebar choose what to search. Also remembered.</li>
           <li><b>Filter by title</b>: click a title in the sidebar to search inside it only.</li>
         </ul>
@@ -2775,7 +2908,7 @@ Books folder/
         <p>The buttons at the top right show keyboard shortcuts (?), and switch language (日本語 / English) and theme (Paper, Haze, Night, Midnight).</p>
 
         <h2>Quitting</h2>
-        <p>Aobana runs in a small window (the "露草" server). Close that window to quit; closing the browser tab alone does not stop it.</p>
+        <p>Aobana runs in a small window titled "露草 / Aobana". Close that window to quit; closing the browser tab alone does not stop it.</p>
       `,
     };
     function initGuideTab() {
@@ -2792,6 +2925,7 @@ Books folder/
     function closeWelcome(goGuide) {
       store.set('welcomed', '1');
       store.set('reindex_told', '1');
+      store.set('seen_version', APP_VERSION);
       document.getElementById('welcome-modal').classList.remove('open');
       document.documentElement.style.overflow = '';
       if (goGuide) window.location.href = '/?tab=guide';
@@ -2843,6 +2977,10 @@ Books folder/
         m.querySelector('#update-cmd').hidden = !!info.self_update;
         m.querySelector('#update-link').hidden = true;
         m.querySelector('#update-now').hidden = !info.self_update;
+      } else if (info.auto) {
+        m.querySelector('#update-auto').hidden = false;
+        m.querySelector('#update-more').textContent = t('update_more_auto');
+        m.querySelector('#update-link').classList.remove('primary');
       }
       m.classList.add('open');
       document.documentElement.style.overflow = 'hidden';
@@ -2883,6 +3021,77 @@ Books folder/
           if (info.current !== from) { location.reload(); return; }
         } catch (e) {}
       }
+    }
+
+    async function applyAutoUpdate() {
+      const m = document.getElementById('update-modal');
+      const more = m.querySelector('#update-more'), bar = m.querySelector('#update-progress');
+      const from = updateInfo && updateInfo.current;
+      const failed = () => {
+        bar.hidden = true;
+        more.textContent = t('update_failed');
+        m.querySelectorAll('.btns .btn').forEach(b => { b.hidden = true; });
+        const link = m.querySelector('#update-link');
+        link.hidden = false;
+        link.classList.add('primary');
+      };
+      const res = await apiPost('/api/update/apply', { lang: LANG }).catch(() => ({ error: 'network' }));
+      if (res.error) return failed();
+      m.querySelectorAll('.btns .btn').forEach(b => { b.hidden = true; });
+      bar.hidden = false; bar.value = 0;
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      for (;;) {
+        await sleep(400);
+        let s;
+        try { s = await (await fetch('/api/update/status', { cache: 'no-store' })).json(); } catch (e) { break; }
+        if (s.state === 'error') return failed();
+        if (s.state === 'installing') break;
+        const pct = s.total ? Math.min(100, Math.floor(s.done * 100 / s.total)) : 0;
+        bar.value = pct;
+        more.textContent = t('update_downloading', { pct });
+      }
+      bar.hidden = true;
+      more.textContent = t('update_installing') + (navigator.platform.startsWith('Win') ? ' ' + t('update_installing_admin') : '');
+      let wentDown = false;
+      for (;;) {
+        await sleep(2000);
+        try {
+          const info = await (await fetch('/api/update?waiting=1', { cache: 'no-store' })).json();
+          if (info.current !== from) { location.reload(); return; }
+          if (wentDown) return failed();
+        } catch (e) { wentDown = true; }
+      }
+    }
+
+    const APP_VERSION = (document.querySelector('meta[name="aobana-version"]') || {}).content || '';
+    function checkWhatsNew() {
+      if (!APP_VERSION || store.get('seen_version') === APP_VERSION) return false;
+      store.set('seen_version', APP_VERSION);
+      openWhatsNew();
+      return true;
+    }
+    function mdInline(s) {
+      return esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '$1');
+    }
+    async function openWhatsNew() {
+      const m = document.getElementById('whatsnew-modal');
+      m.querySelector('#whatsnew-title').textContent = t('whatsnew_title', { version: APP_VERSION });
+      m.querySelector('#whatsnew-sub').hidden = true;
+      m.classList.add('open');
+      document.documentElement.style.overflow = 'hidden';
+      let notes = null;
+      try { notes = await (await fetch('/api/release-notes')).json(); } catch (e) {}
+      const items = (notes && notes.notable) || [];
+      m.querySelector('#whatsnew-list').innerHTML = items.map(s => `<li>${mdInline(s)}</li>`).join('');
+      m.querySelector('#whatsnew-sub').hidden = !items.length;
+      m.querySelector('#whatsnew-none').hidden = !!items.length;
+      if (notes && notes.url) m.querySelector('#whatsnew-more').href = notes.url;
+    }
+    function closeWhatsNew() {
+      document.getElementById('whatsnew-modal').classList.remove('open');
+      document.documentElement.style.overflow = '';
+      checkReindex();
     }
 
     const CARET = '<svg class="dd-caret" viewBox="0 0 20 20"><path d="M5.516 7.548a.625.625 0 0 1 .884-.884l3.6 3.6 3.6-3.6a.625.625 0 1 1 .884.884l-4.042 4.042a.625.625 0 0 1-.884 0z"/></svg>';
@@ -3138,7 +3347,7 @@ Books folder/
       }
 
       if (store.get('welcomed') !== '1') openWelcome();
-      else checkReindex();
+      else if (!checkWhatsNew()) checkReindex();
     });
 
     function initSidebarTooltip() {
@@ -3358,6 +3567,8 @@ Books folder/
         if (modal && modal.classList.contains('open')) { toggleShortcutsModal(); return; }
         const welcome = document.getElementById('welcome-modal');
         if (welcome && welcome.classList.contains('open')) { closeWelcome(false); return; }
+        const reset = document.getElementById('reset-modal');
+        if (reset && reset.classList.contains('open')) { closeReset(false); return; }
         document.querySelectorAll('.dd.open').forEach(d => d.classList.remove('open'));
         setMenu(false);
       }
@@ -3452,7 +3663,7 @@ Books folder/
       </a>
     </nav>
     <div class="topbar-right">
-      <button type="button" id="shortcuts-btn" class="dd-btn top-btn" onclick="toggleShortcutsModal()" data-i18n-title="shortcuts" title="ショートカット (?)" aria-label="ショートカット (?)">
+      <button type="button" id="shortcuts-btn" class="dd-btn top-btn" onclick="toggleShortcutsModal()" data-i18n-title="shortcuts" data-i18n-aria="shortcuts" title="ショートカット (?)" aria-label="ショートカット (?)">
         <span class="dd-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6.5 10h.01M10 10h.01M14 10h.01M17.5 10h.01M8 14h8"/></svg></span>
       </button>
       <div id="lang-dd"></div>
@@ -3482,7 +3693,7 @@ Books folder/
         <div class="search-input-wrap">
           <input name="q" class="search-input" data-i18n-placeholder="placeholder" placeholder="検索" value="" autofocus autocomplete="off" spellcheck="false" />
           <span class="search-btn-box">
-            <button type="submit" class="search-btn" aria-label="search">
+            <button type="submit" class="search-btn" data-i18n-aria="tab_search" aria-label="検索">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
             </button>
           </span>
@@ -3502,7 +3713,7 @@ Books folder/
       <div class="filter-note" id="filter-note" hidden></div>
       <div id="history-state"></div>
       <div class="panel cta" id="empty-library" hidden>
-        <img src="/static/aobana.svg?v={{ asset_v }}" alt="">
+        <img src="/static/aobana.svg?v={{ asset_v }}" alt="" draggable="false">
         <h2 data-i18n="empty_title">ライブラリが空です</h2>
         <p data-i18n="empty_body"></p>
         <a class="btn primary" href="/?tab=library" data-i18n="empty_btn">ライブラリを開く</a>
@@ -3538,7 +3749,7 @@ Books folder/
       <div class="media-more" id="media-more"></div>
     </div>
     <div class="panel cta" id="media-empty" hidden>
-      <img src="/static/aobana.svg?v={{ asset_v }}" alt="">
+      <img src="/static/aobana.svg?v={{ asset_v }}" alt="" draggable="false">
       <h2 data-i18n="empty_title">ライブラリが空です</h2>
       <p data-i18n="empty_body"></p>
       <a class="btn primary" href="/?tab=library" data-i18n="empty_btn">ライブラリを開く</a>
@@ -3563,7 +3774,7 @@ Books folder/
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
           <span data-i18n="lib_run">インデックス作成</span>
         </button>
-        <select id="lib-scope" class="lib-select" aria-label="scope">
+        <select id="lib-scope" class="lib-select" data-i18n-aria="lib_scope_aria" aria-label="インデックスする対象">
           <option value="" data-i18n="lib_scope_all">字幕と書籍</option>
           <option value="subs" data-i18n="lib_scope_subs">字幕のみ</option>
           <option value="epub" data-i18n="lib_scope_epub">書籍のみ</option>
@@ -3600,6 +3811,13 @@ Books folder/
         </div>
         <div class="notice" id="port-note" hidden style="margin:0.8em 0 0;"></div>
       </div>
+      <div class="lib-card" id="lib-reset" style="margin-top:1em;">
+        <h3 data-i18n="reset_title">設定の初期化</h3>
+        <p class="muted" data-i18n="reset_lead" style="margin:0 0 0.8em; font-size:0.9em;"></p>
+        <div class="btns">
+          <button class="btn" onclick="openReset()" data-i18n="reset_btn">初期化</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -3625,8 +3843,8 @@ Books folder/
   </div>
 
   <div class="modal-overlay" id="welcome-modal">
-    <div class="modal-card wide welcome">
-      <img src="/static/aobana.svg?v={{ asset_v }}" alt="">
+    <div class="modal-card welcome big">
+      <img src="/static/aobana.svg?v={{ asset_v }}" alt="" draggable="false">
       <h2 data-i18n="welcome_title">露草へようこそ</h2>
       <p data-i18n="welcome_body"></p>
       <ol>
@@ -3644,7 +3862,7 @@ Books folder/
 
   <div class="modal-overlay" id="reindex-modal">
     <div class="modal-card welcome">
-      <img src="/static/aobana.svg?v={{ asset_v }}" alt="">
+      <img src="/static/aobana.svg?v={{ asset_v }}" alt="" draggable="false">
       <h2 data-i18n="reindex_title">再インデックスをおすすめします</h2>
       <p id="reindex-body"></p>
       <div class="btns">
@@ -3656,7 +3874,7 @@ Books folder/
 
   <div class="modal-overlay" id="checkfirst-modal">
     <div class="modal-card welcome">
-      <img src="/static/aobana.svg?v={{ asset_v }}" alt="">
+      <img src="/static/aobana.svg?v={{ asset_v }}" alt="" draggable="false">
       <h2 data-i18n="checkfirst_title">インデックスの前に、ライブラリを点検しますか？</h2>
       <p data-i18n="checkfirst_body"></p>
       <div class="btns">
@@ -3677,12 +3895,25 @@ Books folder/
     </div>
   </div>
 
+  <div class="modal-overlay" id="reset-modal" onclick="if(event.target===this)closeReset(false)">
+    <div class="modal-card welcome">
+      <h2 data-i18n="reset_q">すべての設定を初期化しますか？</h2>
+      <p id="reset-body"></p>
+      <div class="btns">
+        <button class="btn" onclick="exportFavorites()" data-i18n="reset_export">お気に入りを書き出す</button>
+        <button class="btn primary" onclick="closeReset(false)" data-i18n="lib_cancel">キャンセル</button>
+        <button class="btn" onclick="closeReset(true)" data-i18n="reset_confirm">初期化する</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="update-modal">
     <div class="modal-card welcome">
-      <img src="/static/aobana.svg?v={{ asset_v }}" alt="">
+      <img src="/static/aobana.svg?v={{ asset_v }}" alt="" draggable="false">
       <h2 data-i18n="update_title">新しいバージョンがあります</h2>
       <p id="update-body"></p>
       <p id="update-more" data-i18n="update_more">GitHub のリリースページからダウンロードできます。</p>
+      <progress id="update-progress" max="100" value="0" hidden></progress>
       <div class="update-cmd" id="update-cmd" hidden>
         <code id="update-cmd-text"></code>
         <button class="btn" type="button" onclick="copyUpdateCmd(this)" data-i18n="update_copy">コピー</button>
@@ -3692,6 +3923,21 @@ Books folder/
         <button class="btn" onclick="closeUpdate()" data-i18n="update_later">あとで</button>
         <a class="btn primary" id="update-link" href="https://github.com/Wyzmic/aobana/releases/latest" target="_blank" rel="noopener" onclick="closeUpdate()" data-i18n="update_get">リリースページを開く</a>
         <button class="btn primary" id="update-now" type="button" onclick="applyUpdate()" data-i18n="update_now" hidden>今すぐ更新</button>
+        <button class="btn primary" id="update-auto" type="button" onclick="applyAutoUpdate()" data-i18n="update_auto" hidden>自動で更新</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="whatsnew-modal">
+    <div class="modal-card welcome big">
+      <img src="/static/aobana.svg?v={{ asset_v }}" alt="" draggable="false">
+      <h2 id="whatsnew-title"></h2>
+      <h3 class="whatsnew-sub" id="whatsnew-sub" data-i18n="whatsnew_sub">主な変更点</h3>
+      <ul class="whatsnew-list" id="whatsnew-list"></ul>
+      <p id="whatsnew-none" data-i18n="whatsnew_none" hidden></p>
+      <div class="btns">
+        <a class="btn" id="whatsnew-more" href="https://github.com/Wyzmic/aobana/releases" target="_blank" rel="noopener" data-i18n="whatsnew_more">詳しく見る</a>
+        <button class="btn primary" type="button" onclick="closeWhatsNew()" data-i18n="close">閉じる</button>
       </div>
     </div>
   </div>

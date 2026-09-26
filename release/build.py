@@ -43,6 +43,7 @@ ISCC = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Inno Setup 
 
 APP_FILES = [
     "app.py", "engine.py", "utils.py", "paths.py", "library.py", "analyser.py", "indexer.py", "epub_indexer.py",
+    "folder_picker.py", "updater.py",
     "index.html", "launcher.py", "Aobana.bat", "aobana.sh", "requirements.txt",
     "data/ruby/ruby_decisions.tsv", "data/ruby/ruby_dict_merge.tsv", "data/ruby/ruby_whole.tsv",
     "data/ruby/ruby_trim.tsv",
@@ -106,6 +107,28 @@ def check_whitelist():
                 rel = os.path.relpath(os.path.join(dirpath, f), ROOT).replace("\\", "/")
                 if re.match(pattern, f) and rel not in listed and rel not in NOT_EXPORTED:
                     sys.exit(f"build: {rel} is not in APP_FILES - add it, or say why it stays out")
+    check_imports_shipped()
+
+
+def check_imports_shipped():
+    with open(os.path.join(ROOT, "termux", "install.sh"), encoding="utf-8") as fh:
+        m = re.search(r'^PHONE_FILES="([^"]*)"', fh.read(), re.M)
+    phone = set(m.group(1).split()) if m else set()
+    seen, todo = set(), ["app.py"]
+    while todo:
+        name = todo.pop()
+        if name in seen:
+            continue
+        seen.add(name)
+        with open(os.path.join(ROOT, name), encoding="utf-8") as fh:
+            for mod in re.findall(r"^\s*(?:import|from)\s+(\w+)", fh.read(), re.M):
+                if os.path.isfile(os.path.join(ROOT, mod + ".py")):
+                    todo.append(mod + ".py")
+    for name in sorted(seen):
+        if name not in APP_FILES:
+            sys.exit(f"build: app.py needs {name}, which is not in APP_FILES")
+        if name not in phone:
+            sys.exit(f"build: app.py needs {name}, which termux/install.sh's PHONE_FILES does not download")
 
 
 KEEP_MODULE_DOC = ("build.py", "make_icon.py", "build_unix.py", "smoke.py")
@@ -636,6 +659,21 @@ def installer(ico):
     print(f"  {out}: {os.path.getsize(out) / 2**20:.0f} MB, sha256 {sha256(out)}")
 
 
+def check_release_notes():
+    path = os.path.join(RELEASE, f"notes-{VERSION}.md")
+    if not os.path.isfile(path):
+        sys.exit(f"build: {os.path.relpath(path, ROOT)} is missing - write the release notes first "
+                 "(Downloads, What's Changed > Notable Changes; docs/style-guide.md section 8)")
+    with open(path, encoding="utf-8") as fh:
+        text = fh.read()
+    m = re.search(r"^###\s+Notable Changes\s*$(.*?)(?=^##|\Z)", text, re.M | re.S)
+    lines = [l for l in (m.group(1).splitlines() if m else []) if l.startswith("- ")]
+    if not lines:
+        sys.exit(f"build: {os.path.basename(path)} has no '### Notable Changes' lines - the what's-new "
+                 "window shows only those")
+    print(f"  release notes: {len(lines)} notable changes")
+
+
 def main(argv):
     what = argv[1] if len(argv) > 1 else "all"
     if what not in ("all", "export", "bundle", "installer", "check"):
@@ -645,6 +683,8 @@ def main(argv):
         return
     if what in ("all", "export"):
         export()
+    if what in ("all", "installer"):
+        check_release_notes()
     if what in ("all", "bundle", "installer"):
         ico = bundle()
         if what != "bundle":

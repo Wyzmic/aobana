@@ -3,6 +3,7 @@ import sys
 import re
 import sqlite3
 import threading
+import time
 import uuid
 
 if sys.stdout is None:
@@ -14,6 +15,8 @@ from flask import Flask, render_template, make_response, request, jsonify, g, ab
 from engine import get_search_results, format_episode_title, format_book_title, get_formatted_title, get_ruby_lexicon
 import paths
 import library
+import folder_picker
+import updater
 from utils import outdated_sources
 
 app = Flask(__name__, template_folder='.', static_folder='static')
@@ -40,10 +43,12 @@ def favicon():
 
 BOOT_ID = os.environ.setdefault("AOBANA_BOOT_ID", uuid.uuid4().hex)
 
-VERSION = "1.1"
+VERSION = "1.2"
 RELEASES_URL = "https://github.com/Wyzmic/aobana/releases/latest"
-LATEST_API = "https://api.github.com/repos/Wyzmic/aobana/releases/latest"
-update_info = {"checked": False, "latest": None}
+RELEASES_API = "https://api.github.com/repos/Wyzmic/aobana/releases"
+LATEST_API = f"{RELEASES_API}/latest"
+RELEASES_TAG_URL = "https://github.com/Wyzmic/aobana/releases/tag/v"
+update_info = {"checked": False, "latest": None, "release": None, "page_waiting": 0.0}
 TERMUX = os.environ.get("AOBANA_TERMUX") == "1"
 SELF_UPDATE = TERMUX and os.environ.get("AOBANA_UPDATER") == "1"
 TERMUX_INSTALL = "curl -fsSL https://raw.githubusercontent.com/Wyzmic/aobana/main/termux/install.sh | bash"
@@ -60,8 +65,10 @@ def check_for_update():
         req = urllib.request.Request(LATEST_API, headers={
             "Accept": "application/vnd.github+json", "User-Agent": f"Aobana/{VERSION}"})
         with urllib.request.urlopen(req, timeout=8) as resp:
-            tag = str(json.load(resp).get("tag_name") or "")
+            release = json.load(resp)
+        tag = str(release.get("tag_name") or "")
         update_info["latest"] = tag.lstrip("vV") or None
+        update_info["release"] = release
     except Exception:
         pass
     finally:
@@ -114,7 +121,9 @@ def index():
     exact = request.args.get("exact", "")
     media = request.args.get("media", "all")
     resp = make_response(render_template("index.html", q=q, sort=sort, exact=exact, media=media,
-                                         boot=BOOT_ID, asset_v=ASSET_V))
+                                         boot=BOOT_ID, asset_v=ASSET_V, version=VERSION,
+                                         handoff=library.load_profile_handoff(PORT),
+                                         handoff_pending=library.handoff_pending_from(PORT)))
     resp.headers["Cache-Control"] = "no-store"
     return resp
 
@@ -474,7 +483,7 @@ def api_media():
 @app.route("/api/library", methods=["GET"])
 def api_library():
     db_subs, db_epub = get_db()
-    return jsonify(library.describe(db_subs, db_epub))
+    return jsonify({**library.describe(db_subs, db_epub), "folder_picker": folder_picker.available()})
 
 
 @app.route("/api/library/outdated", methods=["GET"])
@@ -495,10 +504,25 @@ def api_library_set():
         return jsonify({"ok": True, "old_kept": old_kept})
     if "port" in body:
         error = library.set_port(body.get("port"))
+        if not error and not os.environ.get("AOBANA_PORT"):
+            library.save_profile_handoff(int(str(body["port"]).strip()), PORT, body.get("profile"))
     else:
         error = library.set_folders(body.get("subs_dir"), body.get("books_dir"))
     if error:
         return jsonify({"error": error}), 400
+    return jsonify({"ok": True})
+
+
+@app.route("/api/profile-handoff", methods=["POST"])
+def api_profile_handoff():
+    _require_page()
+    body = request.get_json(silent=True) or {}
+    if "items" in body:
+        library.refresh_profile_handoff(PORT, body["items"])
+    elif "applied" in body:
+        library.drop_profile_handoff(PORT, body["applied"])
+    elif body.get("drop"):
+        library.drop_profile_handoff(PORT)
     return jsonify({"ok": True})
 
 
@@ -510,6 +534,19 @@ def api_library_open():
     if error:
         return jsonify({"error": error}), 400
     return jsonify({"ok": True})
+
+
+@app.route("/api/library/pick", methods=["POST"])
+def api_library_pick():
+    _require_page()
+    body = request.get_json(silent=True) or {}
+    start = {"subs": paths.subs_dir, "books": paths.books_dir, "data": paths.db_dir}.get(body.get("which"))
+    try:
+        start = start() if start else None
+    except Exception:
+        start = None
+    status, path = folder_picker.pick(start, str(body.get("title") or "")[:200])
+    return jsonify({"status": status, "path": path})
 
 
 @app.route("/api/library/analyse", methods=["POST"])
@@ -584,9 +621,13 @@ def api_index_stop():
 def api_update():
     latest = update_info["latest"]
     newer = bool(latest) and version_tuple(latest) > version_tuple(VERSION)
+    if request.args.get("waiting"):
+        update_info["page_waiting"] = time.time()
     return jsonify({"checked": update_info["checked"], "current": VERSION, "latest": latest,
                     "newer": newer, "url": RELEASES_URL, "termux": TERMUX,
-                    "self_update": SELF_UPDATE, "install_cmd": TERMUX_INSTALL})
+                    "self_update": SELF_UPDATE, "install_cmd": TERMUX_INSTALL,
+                    "auto": bool(newer and updater.pick_asset(update_info["release"])),
+                    "page_waiting": time.time() - update_info["page_waiting"] < 8})
 
 
 UPDATE_EXIT_CODE = 75
@@ -596,9 +637,51 @@ UPDATE_EXIT_CODE = 75
 def api_update_apply():
     _require_page()
     if not SELF_UPDATE:
-        abort(404)
+        lang = str((request.get_json(silent=True) or {}).get("lang") or "en")
+        error = updater.start(update_info["release"], lang, VERSION,
+                              lambda: threading.Timer(1.0, os._exit, args=(0,)).start())
+        if error:
+            return jsonify({"error": error}), 400
+        return jsonify({"ok": True})
     threading.Timer(0.5, os._exit, args=(UPDATE_EXIT_CODE,)).start()
     return jsonify({"ok": True})
+
+
+@app.route("/api/update/status", methods=["GET"])
+def api_update_status():
+    return jsonify(updater.status)
+
+
+release_notes = {}
+
+
+def notable_changes(body):
+    m = re.search(r"^###\s+Notable Changes\s*$(.*?)(?=^##|\Z)", body or "", re.M | re.S)
+    if not m:
+        return []
+    return [line[2:].strip() for line in m.group(1).splitlines() if line.startswith("- ")]
+
+
+@app.route("/api/release-notes", methods=["GET"])
+def api_release_notes():
+    if VERSION not in release_notes:
+        release = update_info["release"]
+        if not (release and str(release.get("tag_name") or "").lstrip("vV") == VERSION):
+            release = None
+            try:
+                import json
+                import urllib.request
+                req = urllib.request.Request(f"{RELEASES_API}/tags/v{VERSION}", headers={
+                    "Accept": "application/vnd.github+json", "User-Agent": f"Aobana/{VERSION}"})
+                with urllib.request.urlopen(req, timeout=8) as resp:
+                    release = json.load(resp)
+            except Exception:
+                pass
+        if release:
+            release_notes[VERSION] = {"notable": notable_changes(release.get("body")),
+                                      "url": release.get("html_url") or RELEASES_URL}
+    notes = release_notes.get(VERSION) or {"notable": [], "url": f"{RELEASES_TAG_URL}{VERSION}"}
+    return jsonify({"version": VERSION, **notes})
 
 
 @app.route("/api/index/status", methods=["GET"])
@@ -619,6 +702,7 @@ if __name__ == "__main__":
             except Exception:
                 pass
         print(f"露草 / Aobana - http://127.0.0.1:{PORT}/")
-        print("Close Termux to stop the server." if TERMUX else "Close this window to stop the server.")
+        print("Termux を閉じるとサーバーが止まります。 / Close Termux to stop the server." if TERMUX else
+              "このウィンドウを閉じるとサーバーが止まります。 / Close this window to stop the server.")
     paths.make_source_folders()
     app.run(host='127.0.0.1', port=PORT, debug=DEBUG)

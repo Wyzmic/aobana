@@ -49,7 +49,7 @@ ja.MediaCaption=字幕と書籍のフォルダ
 en.MediaDescription=Where are your subtitles and books?
 ja.MediaDescription=字幕と書籍をどこに置きますか？
 en.MediaText=Aobana reads .srt / .ass subtitles and .epub books from these two folders. Keep the suggestions to create two new empty folders, or click Browse to use folders you already have. If you only have one kind, leave the other empty. You can change both later in the Library tab.%n%nInside the subtitles folder, give each show a folder of its own.
-ja.MediaText=Aobana は、この 2 つのフォルダにある字幕（.srt・.ass）と書籍（.epub）を読み込みます。このままにすると新しい空のフォルダを作ります。既にあるフォルダを使う場合は「参照」から選んでください。片方しかない場合は、もう一方を空欄にしてください。どちらも後からライブラリタブで変更できます。%n%n字幕フォルダの中は、作品ごとにフォルダを分けてください。
+ja.MediaText=Aobana は、この2つのフォルダにある字幕（.srt・.ass）と書籍（.epub）を読み込みます。このままにすると新しい空のフォルダを作ります。すでにあるフォルダを使う場合は「参照」から選んでください。片方しかない場合は、もう一方を空欄にしてください。どちらも後からライブラリタブで変更できます。%n%n字幕フォルダの中は、作品ごとにフォルダを分けてください。
 en.MediaTextExisting=These are the folders Aobana uses now. Keep them, or click Browse to choose others. If you only have one kind, leave the other empty. You can change both later in the Library tab.%n%nInside the subtitles folder, give each show a folder of its own.
 ja.MediaTextExisting=Aobana が現在使っているフォルダです。このままにするか、「参照」から別のフォルダを選んでください。片方しかない場合は、もう一方を空欄にしてください。どちらも後からライブラリタブで変更できます。%n%n字幕フォルダの中は、作品ごとにフォルダを分けてください。
 en.MediaSubs=Subtitles folder:
@@ -67,7 +67,7 @@ ja.StartMenuIcon=スタートメニューにショートカットを作成する
 en.MediaPort=Port (Aobana opens at http://127.0.0.1:<port>/):
 ja.MediaPort=ポート（Aobana は http://127.0.0.1:<ポート>/ で開きます）:
 en.PortBusy=Port %1 is already used by another program on this computer, so %2 is suggested instead. You can change it later in the Library tab.
-ja.PortBusy=ポート %1 はこのパソコンの別のプログラムが使用しているため、代わりに %2 を提案しています。後からライブラリタブで変更できます。
+ja.PortBusy=ポート %1 はこのパソコンの別のプログラムが使用しているため、代わりに %2 を候補にしました。後からライブラリタブで変更できます。
 en.PortBad=Enter a port number from 1024 to 65535.
 ja.PortBad=ポートには 1024〜65535 の数字を入力してください。
 en.PortTaken=Port %1 is already in use by another program. Choose another number, or close that program first.
@@ -76,8 +76,8 @@ en.MediaSame=The subtitles folder and the books folder must be two different fol
 ja.MediaSame=字幕フォルダと書籍フォルダには、別々のフォルダを指定してください。
 en.FinishedMedia=Subtitles folder: %1%nBooks folder: %2
 ja.FinishedMedia=字幕フォルダ: %1%n書籍フォルダ: %2
-en.FinishedMediaPerUser=Subtitles and books: each account gets its own Documents\Aobana\Subtitles and \Books when it first starts Aobana.
-ja.FinishedMediaPerUser=字幕と書籍: 各アカウントの初回起動時に、そのアカウントの ドキュメント\Aobana\Subtitles と \Books を作ります。
+en.FinishedMediaPerUser=Subtitles and books: each account gets its own Documents\Aobana\Subtitles and Documents\Aobana\Books folders the first time it starts Aobana.
+ja.FinishedMediaPerUser=字幕と書籍: 各アカウントの初回起動時に、そのアカウントのドキュメント\Aobana\Subtitles と ドキュメント\Aobana\Books を作ります。
 en.FinishedText=Aobana is installed.%n%n%1%nIndex: %2%nSettings: %4%3
 ja.FinishedText=Aobana のインストールが完了しました。%n%n%1%nインデックス: %2%n設定: %4%3
 en.DbCaption=Databases
@@ -85,14 +85,14 @@ ja.DbCaption=データベースの保存先
 en.DbDescription=Where should Aobana keep its index?
 ja.DbDescription=インデックス（データベース）をどこに保存しますか？
 en.DbText=Aobana keeps its index (subs.db and epub.db) in this folder. Keep the suggestion, or choose a folder that already holds an Aobana index to use it as it is. Indexing writes here, so the folder must be writable.
-ja.DbText=Aobana はインデックス（subs.db と epub.db）をこのフォルダに保存します。このままにするか、既に Aobana のインデックスがあるフォルダを選ぶと、それをそのまま使います。インデックス作成はここに書き込むため、書き込めるフォルダを選んでください。
+ja.DbText=Aobana はインデックス（subs.db と epub.db）をこのフォルダに保存します。このままでもかまいません。すでに Aobana のインデックスがあるフォルダを選ぶと、それをそのまま使います。インデックス作成はここに書き込むため、書き込めるフォルダを選んでください。
 en.DbFound=Found in this folder: %1. Aobana will use this index.
 ja.DbFound=このフォルダにあります: %1。このインデックスを使います。
 en.DbNone=No databases in this folder yet: indexing creates them.
 ja.DbNone=このフォルダにはまだデータベースがありません。インデックス作成で作られます。
 en.DbNotWritable=Aobana could not write to this folder:%n%n%1%n%nIndexing needs to write there. Choose another folder.
 ja.DbNotWritable=このフォルダに書き込めませんでした:%n%n%1%n%nインデックス作成で書き込む必要があります。別のフォルダを選んでください。
-en.DbDefault=&Default location
+en.DbDefault=Back to &default
 ja.DbDefault=既定の場所に戻す(&D)
 en.RunAsAdmin=Run as &administrator
 ja.RunAsAdmin=管理者として実行(&A)
@@ -107,7 +107,7 @@ en.ReadyDb=Index (databases):
 en.ReadyAddress=Aobana opens at:
 en.UninstCaption=Uninstall Aobana
 ja.ReadyMedia=字幕と書籍のフォルダ:
-ja.ReadyDb=インデックスの保存先:
+ja.ReadyDb=インデックス（データベース）の保存先:
 ja.ReadyAddress=Aobana のアドレス:
 ja.UninstCaption=Aobana のアンインストール
 en.UninstHeading=Choose what to delete along with the program
@@ -207,18 +207,9 @@ end;
 function IsDefaultMedia(Path: String; Index: Integer): Boolean;
 begin
   if Index = 0 then
-    Result := SameFolder(Path, DefaultMedia('Subtitles')) or SameFolder(Path, DefaultMedia('字幕'))
+    Result := SameFolder(Path, DefaultMedia('Subtitles'))
   else
-    Result := SameFolder(Path, DefaultMedia('Books')) or SameFolder(Path, DefaultMedia('書籍'));
-end;
-
-function NewDefaultName(Path: String; Index: Integer): String;
-begin
-  Result := Path;
-  if (Index = 0) and SameFolder(Path, DefaultMedia('字幕')) then
-    Result := DefaultMedia('Subtitles');
-  if (Index = 1) and SameFolder(Path, DefaultMedia('書籍')) then
-    Result := DefaultMedia('Books');
+    Result := SameFolder(Path, DefaultMedia('Books'));
 end;
 
 function KeptDefaults(): Boolean;
@@ -605,8 +596,6 @@ begin
     S := DefaultMedia('Subtitles');
     B := DefaultMedia('Books');
   end;
-  S := NewDefaultName(S, 0);
-  B := NewDefaultName(B, 1);
   if not (JsonField(Cfg, 'port', P, IsStr) and not IsStr) then
     if not (JsonField(OldMarker, 'port', P, IsStr) and not IsStr) then
       P := '5000';

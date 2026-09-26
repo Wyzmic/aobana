@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.2 — One-click updates, folder pickers, settings that follow the port
+
+- **Update automatically**: the new-version window can download the release, check it, install it
+  and start Aobana again, on Windows (the installer, per user or for all users), macOS and Linux
+  (the AppImage and the `.tar.gz` install). If the install does not go through, the old version
+  starts again and says so. Android keeps its own **Update now**.
+- **What's new**: the first start of a new version shows that release's notable changes.
+- **Folder pickers**: the **Change** buttons in the Library tab open the system's folder dialog on
+  Windows, macOS and Linux; the text field stays for typing a path, and on Android.
+- **Changing the port** keeps your settings (language, theme, favorites and the rest), which the
+  browser keeps per address. **Reset all settings to default**, at the end of the Library tab, puts
+  every setting back; the library and the index are kept.
+- **The top bar** stays pinned on every tab, the search tab included.
+- **Wording**: the Japanese and English interface, the installer and the READMEs are reworded to be
+  clearer and consistent; English counts read "1 show" and "1 book".
+- **Screen readers**: buttons that show only an icon (★, ⋯, the shortcuts, search and scope
+  controls) are named.
+- **Windows**: the welcome and what's-new windows are wider; every window keeps one text size on
+  any screen, and its icon can no longer be dragged out.
+- **Searching a lone auxiliary** such as `だ`, `です` or `ない` finds that word as written: `だ` no
+  longer finds lines that only have `な`, `で` or `じゃ`.
+
 ## 1.1 — macOS, Linux, `.ass` subtitles and the Library check
 
 - **macOS (Apple Silicon)**: a `.dmg` with Aobana inside, Python included. It opens at
@@ -27,10 +49,10 @@
   that has only one chapter in its table of contents is split at its numbered headings; a section
   shows the chapter it belongs to.
 - **Re-indexing a 1.0 library**: files indexed by 1.0 are re-read with one click in the Library
-  tab, which the first start of 1.1 mentions once. Saved sentences follow their line.
+  tab, which the first start of 1.1 mentions once. Favorites are kept.
 - **Big libraries**: the Media list and the search sidebar load a page at a time, and a long search
   shows the time left.
-- **Furigana over a short word** is centred over it.
+- **Furigana over a short word** is centered over it.
 - **The default folders are named `Subtitles` and `Books`.** An update renames 1.0's default
   folders once; folders you chose yourself are left as they are. On Android, the install makes
   empty `content/Subtitles` and `content/Books` folders.

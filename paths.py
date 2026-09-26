@@ -19,7 +19,7 @@ def _user_data_dir():
 
 
 INSTALLED = os.path.exists(MARKER_PATH)
-STORE_DIR = _user_data_dir() if INSTALLED else BASE_DIR
+STORE_DIR = _user_data_dir() if INSTALLED else (os.environ.get("AOBANA_DATA_DIR") or BASE_DIR)
 CONFIG_PATH = os.path.join(STORE_DIR, "config.json")
 
 
@@ -33,48 +33,6 @@ def _read_json(path):
 
 
 MEDIA_NAMES = ("Subtitles", "Books")
-OLD_MEDIA_NAMES = ("字幕", "書籍")
-
-
-def _rename_old_defaults(cfg):
-    root = _default_media_root()
-    for key, old, new in (("subs_dir", OLD_MEDIA_NAMES[0], MEDIA_NAMES[0]),
-                          ("books_dir", OLD_MEDIA_NAMES[1], MEDIA_NAMES[1])):
-        value = cfg.get(key)
-        if not value:
-            continue
-        old_p, new_p = os.path.join(root, old), os.path.join(root, new)
-        here = os.path.normcase(os.path.abspath(value))
-        if here not in (os.path.normcase(old_p), os.path.normcase(new_p)):
-            continue
-        try:
-            if os.path.isdir(old_p):
-                if os.path.isdir(new_p) and not os.listdir(new_p):
-                    os.rmdir(new_p)
-                if not os.path.exists(new_p):
-                    os.rename(old_p, new_p)
-        except OSError:
-            pass
-        if os.path.isdir(old_p) and (here == os.path.normcase(old_p) or not os.path.isdir(new_p)):
-            cfg[key] = old_p
-        else:
-            cfg[key] = new_p
-
-
-def _source_folders(cfg):
-    root = _default_media_root()
-    changed = False
-    for i, key in enumerate(("subs_dir", "books_dir")):
-        value = cfg.get(key)
-        old = os.path.join(root, OLD_MEDIA_NAMES[i])
-        if value and not os.path.isdir(value) and os.path.normcase(os.path.abspath(value)) == os.path.normcase(old):
-            cfg[key] = os.path.join(root, MEDIA_NAMES[i])
-            changed = True
-    if changed:
-        try:
-            save_config(cfg)
-        except OSError:
-            pass
 
 
 def make_source_folders():
@@ -84,14 +42,13 @@ def make_source_folders():
     cfg = load_config()
     try:
         entries = set(os.listdir(root)) if os.path.isdir(root) else set()
-        if entries <= set(MEDIA_NAMES) | set(OLD_MEDIA_NAMES):
+        if entries <= set(MEDIA_NAMES):
             for i, key in enumerate(("subs_dir", "books_dir")):
                 new = os.path.join(root, MEDIA_NAMES[i])
                 named = cfg.get(key)
                 if key in cfg and (not named or os.path.normcase(os.path.abspath(named)) != os.path.normcase(new)):
                     continue
-                if not os.path.isdir(os.path.join(root, OLD_MEDIA_NAMES[i])):
-                    os.makedirs(new, exist_ok=True)
+                os.makedirs(new, exist_ok=True)
     except OSError:
         pass
 
@@ -99,20 +56,12 @@ def make_source_folders():
 def load_config():
     cfg = _read_json(CONFIG_PATH)
     if not INSTALLED:
-        _source_folders(cfg)
         return cfg
     seed = _read_json(MARKER_PATH)
     stamp = seed.get("installed_at")
     new_install = stamp is not None and cfg.get("installed_at") != stamp
     configured = "subs_dir" in cfg or "books_dir" in cfg
     if configured and not new_install:
-        before = (cfg.get("subs_dir"), cfg.get("books_dir"))
-        _rename_old_defaults(cfg)
-        if (cfg.get("subs_dir"), cfg.get("books_dir")) != before:
-            try:
-                save_config(cfg)
-            except OSError:
-                pass
         return cfg
     if "subs_dir" in seed or "books_dir" in seed:
         cfg.update(subs_dir=seed.get("subs_dir") or "", books_dir=seed.get("books_dir") or "")
@@ -128,7 +77,6 @@ def load_config():
             cfg.pop("db_dir", None)
     if stamp is not None:
         cfg["installed_at"] = stamp
-    _rename_old_defaults(cfg)
     try:
         for folder in (cfg.get("subs_dir"), cfg.get("books_dir")):
             if folder:
@@ -189,9 +137,7 @@ def books_dir():
 
 
 def _source_media(i):
-    root = _default_media_root()
-    new, old = os.path.join(root, MEDIA_NAMES[i]), os.path.join(root, OLD_MEDIA_NAMES[i])
-    return old if os.path.isdir(old) and not os.path.isdir(new) else new
+    return os.path.join(_default_media_root(), MEDIA_NAMES[i])
 
 
 def server_port():
